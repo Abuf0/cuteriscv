@@ -1,6 +1,54 @@
 package mylib
 import spinal.core._
 import spinal.lib._   // IMasterSlave
+import BundleImplicit._   // connect with master & slave
+
+// 隐式类，协助Master、Slave在不同类的实例中的连接
+object BundleImplicit{
+  implicit class autoConnect(bus:Bundle){
+    def connect(srcBus:Bundle):Unit={
+      bus.connectWithSrc(srcBus)
+    }
+    def connectWithSrc(srcBus:Bundle):Unit={
+      for((name,element)<-bus.elements){
+        val nameOfBundle1 = srcBus.getName()
+        val nameOfBundle2 = bus.getName()
+        println(Console.GREEN+s"connecting Bundle " + Console.YELLOW + s"$nameOfBundle1"
+          + Console.GREEN + s" & " + Console.YELLOW + s"$nameOfBundle2" + Console.GREEN +s" with port "
+          + Console.MAGENTA + s"$name"+Console.RESET)
+        val srcPort = srcBus.find(name)
+        if(srcPort!=null){
+          element match {
+            case b:Bundle => b.connect(srcPort.asInstanceOf[Bundle])
+            case _ =>{
+              (element.getDirection,srcPort.getDirection) match {
+                case (`out`,`in`)  => assignWithAdapt(element,srcPort)
+                case(`out`,null)   => assignWithAdapt(element,srcPort)
+                case(`in`,`out`)   => assignWithAdapt(srcPort,element)
+                case(`in`,null)    => assignWithAdapt(srcPort,element)
+                case(null,`out`)   => assignWithAdapt(srcPort,element)
+                case(null,`in`)    => assignWithAdapt(element,srcPort)
+                case (`in`,`in`)  => assignWithAdapt(element,srcPort)   // 为模块嵌套做准备，即子模块的输入也作为其上主模块的输入
+                case (`out`,`out`)  => assignWithAdapt(element,srcPort)  //  // 为模块嵌套做准备，即子模块的输出也作为其上主模块的输出
+                case _  if element.isAnalog && srcPort.isAnalog => assignWithAdapt(element,srcPort)
+                case _             => LocatedPendingError(s"Direction Error")
+              }
+            }
+          }
+        }
+      }
+    }
+    def assignWithAdapt(dst:Data,src:Data):Unit={
+      if(dst.getBitsWidth != src.getBitsWidth){
+        println(Console.RED+s"$dst width is different with $src, auto resize."+Console.RESET)
+        dst <> src.resized
+      }else
+        dst <> src
+    }
+  }
+}
+
+
 //class core(){
 //}
 class pc_reg extends Component with Global_parameter  with Interface_MS{
@@ -63,22 +111,23 @@ class if_id extends Component with Global_parameter with Interface_MS{
   io.M_if_id2id.inst := if_inst_r
 }
 
+// regfile for 32 common registers //
 class regfile extends Component with Global_parameter with Interface_MS {
   val io = new Bundle {
     val clk = in Bool()
     val rst = in Bool()
     val S_id2regfile = slave(id2regfile_interface(CoreConfig())) // for ID read
-    val M_wb2regfile = master(wb2regfileInterface(CoreConfig()))  // for WB wirte
+    val S_wb2regfile = slave(wb2regfileInterface(CoreConfig()))  // for WB wirte
   }
-  val mem = Mem(UInt(DataBus bits), wordCount = DataMemNum)
+  val mem = Mem(UInt(RegBus bits), wordCount = RegNum)
   mem.write(
-    enable  = io.rst===RstDisable && io.M_wb2regfile.we===WriteEnable,
-    address = io.M_wb2regfile.waddr,
-    data    = io.M_wb2regfile.wdata
+    enable  = io.rst===RstDisable && io.S_wb2regfile.we===WriteEnable,
+    address = io.S_wb2regfile.waddr,
+    data    = io.S_wb2regfile.wdata
   )
   // 考虑到同时读写问题，writethrough //
-  val reg1_raw = io.S_id2regfile.reg1_rden===ReadEnable && io.M_wb2regfile.waddr=/=io.S_id2regfile.reg1_addr
-  val reg2_raw = io.S_id2regfile.reg2_rden===ReadEnable && io.M_wb2regfile.waddr=/=io.S_id2regfile.reg2_addr
+  val reg1_raw = io.S_id2regfile.reg1_rden===ReadEnable && io.S_wb2regfile.waddr=/=io.S_id2regfile.reg1_addr
+  val reg2_raw = io.S_id2regfile.reg2_rden===ReadEnable && io.S_wb2regfile.waddr=/=io.S_id2regfile.reg2_addr
   val reg1_data = UInt(RegBus bits)
   val reg2_data = UInt(RegBus bits)
   reg1_data := mem.readSync(
@@ -95,7 +144,7 @@ class regfile extends Component with Global_parameter with Interface_MS {
   } .elsewhen(io.S_id2regfile.reg1_rden===ReadDisable){
     io.S_id2regfile.reg1_data := ZeroWord
   } .elsewhen(reg1_raw) {
-    io.S_id2regfile.reg1_data := io.M_wb2regfile.wdata
+    io.S_id2regfile.reg1_data := io.S_wb2regfile.wdata
   } .otherwise{
     io.S_id2regfile.reg1_data := reg1_data
   }
@@ -104,7 +153,7 @@ class regfile extends Component with Global_parameter with Interface_MS {
   } .elsewhen(io.S_id2regfile.reg2_rden===ReadDisable){
     io.S_id2regfile.reg2_data := ZeroWord
   } .elsewhen(reg2_raw) {
-    io.S_id2regfile.reg2_data := io.M_wb2regfile.wdata
+    io.S_id2regfile.reg2_data := io.S_wb2regfile.wdata
   } .otherwise{
     io.S_id2regfile.reg2_data := reg2_data
   }
@@ -121,6 +170,27 @@ class id extends Component with Global_parameter with Interface_MS {
     val M_id2regfile = master(id2regfile_interface(CoreConfig()))
     val M_id2ex = master(id2id_ex_interface(CoreConfig()))
   }
+  def ADD                = M"000000---------------00000100100"
+  def OR                 = M"000000---------------00000100101"
+  def XOR                = M"000000---------------00000100111"
+  def NOR                = M"000000---------------00000100111"
+  def ANDI               = M"001100--------------------------"
+  def XORI               = M"001110--------------------------"
+  def LUI                = M"00111100000---------------------"
+  def ORI                = M"001101--------------------------"
+  def SLL                = M"00000000000---------------000000"
+  def SRL                = M"00000000000---------------000010"
+  def SRA                = M"00000000000---------------000011"
+  def SLLV               = M"00000000000---------------000100"
+  def SRLV               = M"00000000000---------------000110"
+  def SRAV               = M"00000000000---------------000111"
+  def MOVN               = M"000000---------------00000001011"
+  def MOVZ               = M"000000---------------00000001010"
+  def MFHI               = M"00000000000----------00000010000"
+  def MFLO               = M"00000000000----------00000010010"
+  def MTHI               = M"000000-----000000000000000010001"
+  def MTLO               = M"000000-----000000000000000010011"
+
   // 指令判断过程：
   // op [31:26] -->  ==SPECIAL  --> op2 [10:6]=0 --> op3 [5:0] 决定 or/and/xor/nor/sllv/srlv/srav/sync
   //                                                              movn/movz/mthi/mtlo/mfhi/mflo
@@ -156,6 +226,28 @@ class id extends Component with Global_parameter with Interface_MS {
   val isInstValid = Bool()
   val imm = UInt(RegBus bits)
 
+  isInstValid := InstInvalid  // 指令有效标记位，初始时记为无效指令
+  //r_isSyscall := noException  // 系统调用异常，初始为无
+  //r_isEret := noException  // 异常返回，初始不返回
+  io.M_id2ex.alusel := EXE_RES_NOP // 运算类型（逻辑or算数）
+  io.M_id2ex.aluop := EXE_NOP_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+  io.M_id2ex.wreg_addr := op4
+  io.M_id2ex.wreg_we := WriteDisable
+  io.M_id2ex.inst := io.S_if_id2id.inst
+  io.M_id2regfile.reg1_rden := ReadDisable
+  io.M_id2regfile.reg2_rden := ReadDisable
+  io.M_id2regfile.reg1_addr := op2
+  io.M_id2regfile.reg2_addr := op3
+  imm := ZeroWord
+  // 转移/分支相关
+  // pc相关
+  //io.M_branch_id2pcReg.brach_flag := NotBranch
+  //io.M_branch_id2pcReg.brach_targetAddress := ZeroWord
+  // idEx相关
+  //io.M_branch_id2idEx.link_addr := ZeroWord
+  //io.M_branch_id2idEx.next_inst_inDelayslot := NotInDelaySlot
+  //io.M_branch_id2idEx.is_inDelayslot := NotInDelaySlot
+
   when(io.rst===RstEnable) {
     isInstValid := InstInvalid  // 指令有效标记位，初始时记为无效指令
     //r_isSyscall := noException  // 系统调用异常，初始为无
@@ -164,6 +256,7 @@ class id extends Component with Global_parameter with Interface_MS {
     io.M_id2ex.aluop := EXE_NOP_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
     io.M_id2ex.wreg_addr := NOPRegAddr
     io.M_id2ex.wreg_we := WriteDisable
+    io.M_id2ex.inst := ZeroWord
     io.M_id2regfile.reg1_rden := ReadDisable
     io.M_id2regfile.reg2_rden := ReadDisable
     io.M_id2regfile.reg1_addr := NOPRegAddr
@@ -178,101 +271,100 @@ class id extends Component with Global_parameter with Interface_MS {
     //io.M_branch_id2idEx.next_inst_inDelayslot := NotInDelaySlot
     //io.M_branch_id2idEx.is_inDelayslot := NotInDelaySlot
   } .otherwise {
-    isInstValid := InstInvalid  // 指令有效标记位，初始时记为无效指令
-    //r_isSyscall := noException  // 系统调用异常，初始为无
-    //r_isEret := noException  // 异常返回，初始不返回
-    io.M_id2ex.alusel := EXE_RES_NOP // 运算类型（逻辑or算数）
-    io.M_id2ex.aluop := EXE_NOP_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
-    io.M_id2ex.wreg_addr := op4
-    io.M_id2ex.wreg_we := WriteDisable
-    io.M_id2regfile.reg1_rden := ReadDisable
-    io.M_id2regfile.reg2_rden := ReadDisable
-    io.M_id2regfile.reg1_addr := op2
-    io.M_id2regfile.reg2_addr := op3
-    imm := ZeroWord
-    // 转移/分支相关
-    // pc相关
-    //io.M_branch_id2pcReg.brach_flag := NotBranch
-    //io.M_branch_id2pcReg.brach_targetAddress := ZeroWord
-    // idEx相关
-    //io.M_branch_id2idEx.link_addr := ZeroWord
-    //io.M_branch_id2idEx.next_inst_inDelayslot := NotInDelaySlot
-    //io.M_branch_id2idEx.is_inDelayslot := NotInDelaySlot
+    /*
     switch(op1){
       is(EXE_SPECIAL_INST) { // [31:26] 为特殊指令 SPEICAL
-        is(op5===U"5'b00000"){  // [10:6] 为全0
-          switch(op6){  // 根据[5:0] 判断特定指令
-            is(EXE_AND){
-              isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
-              //r_isSyscall := noException  // 系统调用异常，初始为无
-              //r_isEret := noException  // 异常返回，初始不返回
-              io.M_id2ex.alusel := EXE_RES_LOGIC // 运算类型（逻辑or算数）
-              io.M_id2ex.aluop := EXE_AND_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
-              //io.M_id2ex.wreg_addr := op4 // [15:11]
-              io.M_id2ex.wreg_we := WriteEnable
-              io.M_id2regfile.reg1_rden := ReadEnable
-              io.M_id2regfile.reg2_rden := ReadEnable
-              //io.M_id2regfile.reg1_addr := op2
-              //io.M_id2regfile.reg2_addr := op3
-              //imm := ZeroWord
-            }
-            is(EXE_SRLV){
-              isInstValid := InstValid
-              io.M_id2ex.alusel := EXE_RES_SHIFT
-              io.M_id2ex.aluop := EXE_SRLV_OP
-              io.M_id2ex.wreg_we := WriteEnable
-              io.M_id2regfile.reg1_rden := ReadEnable
-              io.M_id2regfile.reg2_rden := ReadEnable
-            }
-            is(EXE_MOVN){
-              isInstValid := InstValid
-              io.M_id2ex.alusel := EXE_RES_MOVE
-              io.M_id2ex.aluop := EXE_MOVN_OP
-              io.M_id2ex.wreg_we := (io.M_id2regfile.reg2_data===ZeroWord)?   WriteDisable | WriteEnable
-              io.M_id2regfile.reg1_rden := ReadEnable
-              io.M_id2regfile.reg2_rden := ReadEnable
-            }
-            is(EXE_AND){
-              isInstValid := InstValid
-              io.M_id2ex.alusel := EXE_RES_ARITHMETIC
-              io.M_id2ex.aluop := EXE_AND_OP
-              io.M_id2ex.wreg_we := WriteEnable
-              io.M_id2regfile.reg1_rden := ReadEnable
-              io.M_id2regfile.reg2_rden := ReadEnable
-            }
-            is(EXE_MULT){
-              isInstValid := InstValid
-              io.M_id2ex.alusel := EXE_RES_NOP  // 不写入common regfile，涉及HILO
-              io.M_id2ex.aluop := EXE_MULT_OP
-              io.M_id2ex.wreg_we := WriteEnable
-              io.M_id2regfile.reg1_rden := ReadEnable
-              io.M_id2regfile.reg2_rden := ReadEnable
-            }
-            is(EXE_DIV){
-              isInstValid := InstValid
-              io.M_id2ex.alusel := EXE_RES_NOP  // 不写入common regfile，涉及HILO
-              io.M_id2ex.aluop := EXE_DIV_OP
-              io.M_id2ex.wreg_we := WriteEnable
-              io.M_id2regfile.reg1_rden := ReadEnable
-              io.M_id2regfile.reg2_rden := ReadEnable
-            }
-            is(EXE_JR){
-              isInstValid := InstValid
-              io.M_id2ex.alusel := EXE_RES_JUMP_BRANCH
-              io.M_id2ex.aluop := EXE_JR_OP
-              io.M_id2ex.wreg_we := WriteDisable
-              io.M_id2regfile.reg1_rden := ReadEnable
-              io.M_id2regfile.reg2_rden := ReadDisable
-              // TODO with branch & jump //
-              // pc相关
-              //io.M_branch_id2pcReg.brach_flag := Branch
-              //io.M_branch_id2pcReg.brach_targetAddress := io.M_id2idEx.reg1  // 取rs的值作为新的指令地址
-              // idEx相关
-              //io.M_branch_id2idEx.next_inst_inDelayslot := InDelaySlot
+        switch(op5) {
+          is(U"5'b00000") { // [10:6] 为全0
+            switch(op6) { // 根据[5:0] 判断特定指令
+              is(EXE_AND) {
+                isInstValid := InstValid // 指令有效标记位，初始时记为无效指令
+                //r_isSyscall := noException  // 系统调用异常，初始为无
+                //r_isEret := noException  // 异常返回，初始不返回
+                io.M_id2ex.alusel := EXE_RES_LOGIC // 运算类型（逻辑or算数）
+                io.M_id2ex.aluop := EXE_AND_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+                //io.M_id2ex.wreg_addr := op4 // [15:11]
+                io.M_id2ex.wreg_we := WriteEnable
+                io.M_id2regfile.reg1_rden := ReadEnable
+                io.M_id2regfile.reg2_rden := ReadEnable
+                //io.M_id2regfile.reg1_addr := op2
+                //io.M_id2regfile.reg2_addr := op3
+                //imm := ZeroWord
+              }
+              is(EXE_SRLV) {
+                isInstValid := InstValid
+                io.M_id2ex.alusel := EXE_RES_SHIFT
+                io.M_id2ex.aluop := EXE_SRLV_OP
+                io.M_id2ex.wreg_we := WriteEnable
+                io.M_id2regfile.reg1_rden := ReadEnable
+                io.M_id2regfile.reg2_rden := ReadEnable
+              }
+              is(EXE_MOVN) {
+                isInstValid := InstValid
+                io.M_id2ex.alusel := EXE_RES_MOVE
+                io.M_id2ex.aluop := EXE_MOVN_OP
+                io.M_id2ex.wreg_we := (io.M_id2regfile.reg2_data === ZeroWord) ? WriteDisable | WriteEnable
+                io.M_id2regfile.reg1_rden := ReadEnable
+                io.M_id2regfile.reg2_rden := ReadEnable
+              }
+              is(EXE_ADD) {
+                isInstValid := InstValid
+                io.M_id2ex.alusel := EXE_RES_ARITHMETIC
+                io.M_id2ex.aluop := EXE_AND_OP
+                io.M_id2ex.wreg_we := WriteEnable
+                io.M_id2regfile.reg1_rden := ReadEnable
+                io.M_id2regfile.reg2_rden := ReadEnable
+              }
+              is(EXE_MULT) {
+                isInstValid := InstValid
+                io.M_id2ex.alusel := EXE_RES_NOP // 不写入common regfile，涉及HILO
+                io.M_id2ex.aluop := EXE_MULT_OP
+                io.M_id2ex.wreg_we := WriteEnable
+                io.M_id2regfile.reg1_rden := ReadEnable
+                io.M_id2regfile.reg2_rden := ReadEnable
+              }
+              is(EXE_DIV) {
+                isInstValid := InstValid
+                io.M_id2ex.alusel := EXE_RES_NOP // 不写入common regfile，涉及HILO
+                io.M_id2ex.aluop := EXE_DIV_OP
+                io.M_id2ex.wreg_we := WriteEnable
+                io.M_id2regfile.reg1_rden := ReadEnable
+                io.M_id2regfile.reg2_rden := ReadEnable
+              }
+              is(EXE_JR) {
+                isInstValid := InstValid
+                io.M_id2ex.alusel := EXE_RES_JUMP_BRANCH
+                io.M_id2ex.aluop := EXE_JR_OP
+                io.M_id2ex.wreg_we := WriteDisable
+                io.M_id2regfile.reg1_rden := ReadEnable
+                io.M_id2regfile.reg2_rden := ReadDisable
+                // TODO with branch & jump //
+                // pc相关
+                //io.M_branch_id2pcReg.brach_flag := Branch
+                //io.M_branch_id2pcReg.brach_targetAddress := io.M_id2idEx.reg1  // 取rs的值作为新的指令地址
+                // idEx相关
+                //io.M_branch_id2idEx.next_inst_inDelayslot := InDelaySlot
+              }
+              default {
+                isInstValid := InstInvalid
+                io.M_id2ex.alusel := EXE_RES_NOP
+                io.M_id2ex.aluop := EXE_NOP_OP
+                io.M_id2ex.wreg_we := WriteDisable
+                io.M_id2regfile.reg1_rden := ReadDisable
+                io.M_id2regfile.reg2_rden := ReadDisable
+              }
             }
           }
-
+          default{
+            isInstValid := InstInvalid
+            io.M_id2ex.alusel := EXE_RES_NOP
+            io.M_id2ex.aluop := EXE_NOP_OP
+            io.M_id2ex.wreg_we := WriteDisable
+            io.M_id2regfile.reg1_rden := ReadDisable
+            io.M_id2regfile.reg2_rden := ReadDisable
+          }
         }
+
       }
       is(EXE_ANDI){
         isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
@@ -313,6 +405,88 @@ class id extends Component with Global_parameter with Interface_MS {
         io.M_id2regfile.reg2_rden := ReadDisable
       }
       // TODO with others instructions //
+      default{
+        isInstValid := InstInvalid
+        io.M_id2ex.alusel := EXE_RES_NOP
+        io.M_id2ex.aluop := EXE_NOP_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadDisable
+      }
+    }
+    */
+    switch(io.S_if_id2id.inst){
+      is(ADD){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOGIC
+        io.M_id2ex.aluop := EXE_AND_OP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(OR){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOGIC
+        io.M_id2ex.aluop := EXE_OR_OP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(XOR){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOGIC
+        io.M_id2ex.aluop := EXE_XOR_OP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(NOR){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOGIC
+        io.M_id2ex.aluop := EXE_NOR_OP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(ANDI){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_LOGIC // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_ANDI_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_addr := op3 // [20:16]
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadDisable
+        imm := io.S_if_id2id.inst(15 downto 0).resize(RegBus bits)
+      }
+      is(XORI){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_LOGIC // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_XORI_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_addr := op3 // [20:16]
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadDisable
+        imm := io.S_if_id2id.inst(15 downto 0).resize(RegBus bits)
+      }
+      is(ORI){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_LOGIC // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_ORI_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_addr := op3 // [20:16]
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadDisable
+        imm := io.S_if_id2id.inst(15 downto 0).resize(RegBus bits)
+      }
+
+      default{
+        isInstValid := InstInvalid
+        io.M_id2ex.alusel := EXE_RES_NOP
+        io.M_id2ex.aluop := EXE_NOP_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadDisable
+      }
     }
   }
   // TODO 先不考虑hazard //
@@ -350,7 +524,7 @@ class id_ex extends Component with Global_parameter with Interface_MS {
   val reg1_data_r = Reg(UInt(RegBus bits))  init(ZeroWord)
   val reg2_data_r = Reg(UInt(RegBus bits))  init(ZeroWord)
   val wreg_we_r = Reg(Bool()) init(WriteDisable)
-  val wreg_addr_r = Reg(UInt(RegAddrBus bits))  init(ZeroWord)
+  val wreg_addr_r = Reg(UInt(RegAddrBus bits))  init(NOPRegAddr)
   // 转移/分支指令相关缓存
   //val is_inDelayslot_r = Reg(io.S_branch_id2idEx.is_inDelayslot) init(NotInDelaySlot)
   //val link_addr_r = Reg(io.S_branch_id2idEx.link_addr) init(ZeroWord)
@@ -365,7 +539,7 @@ class id_ex extends Component with Global_parameter with Interface_MS {
     reg1_data_r := ZeroWord
     reg2_data_r := ZeroWord
     wreg_we_r := WriteDisable
-    wreg_addr_r := ZeroWord
+    wreg_addr_r := NOPRegAddr
     // TODO with branch & jump & except //
   } .elsewhen(io.stall(2)===Stop && io.stall(3)===NoStop){
     aluop_r := EXE_NOP_OP
@@ -373,7 +547,7 @@ class id_ex extends Component with Global_parameter with Interface_MS {
     reg1_data_r := ZeroWord
     reg2_data_r := ZeroWord
     wreg_we_r := WriteDisable
-    wreg_addr_r := ZeroWord
+    wreg_addr_r := NOPRegAddr
   } .elsewhen(io.stall(2)===NoStop){
     aluop_r := io.S_id2id_ex.aluop
     alusel_r := io.S_id2id_ex.alusel
@@ -400,6 +574,7 @@ class ex extends Component with Global_parameter with Interface_MS {
     val flush = in Bool()
     val S_id_ex2ex = slave(id_ex2ex_interface(CoreConfig()))
     val M_ex2ex_mem = master(wb2regfileInterface(CoreConfig()))
+    val M_load_store = master(load_store_interface(CoreConfig()))
   }
   val res = UInt(RegBus bits)
   val data1 = io.S_id_ex2ex.reg1_data
@@ -414,12 +589,15 @@ class ex extends Component with Global_parameter with Interface_MS {
     is(EXE_SRLV_OP){
       res := data2 |<< data1(4 downto 0)
     }
+    default{
+      res := ZeroWord
+    }
   }
 
   when(io.rst===RstEnable){
     io.M_ex2ex_mem.wdata := ZeroWord
     io.M_ex2ex_mem.we := WriteDisable
-    io.M_ex2ex_mem.waddr := ZeroWord
+    io.M_ex2ex_mem.waddr := NOPRegAddr
   } .elsewhen(False) {  // TODO :若为加、减法，且为溢出即不写入的操作指令，写入标记位记为0
     io.M_ex2ex_mem.wdata := res
     io.M_ex2ex_mem.we := WriteDisable
@@ -430,10 +608,441 @@ class ex extends Component with Global_parameter with Interface_MS {
     io.M_ex2ex_mem.waddr := io.S_id_ex2ex.wreg_addr
   }
 
+  io.M_load_store.aluop := io.S_id_ex2ex.aluop
+  io.M_load_store.mem_addr := io.S_id_ex2ex.reg1_data + (U(16 bits,default -> io.S_id_ex2ex.inst(15))  @@ io.S_id_ex2ex.inst(15 downto 0))
+  io.M_load_store.mem_data := io.S_id_ex2ex.reg2_data
+
 }
 
 class ex_mem extends Component with Global_parameter with Interface_MS{
+  val io = new Bundle {
+    val clk = in Bool()
+    val rst = in Bool()
+    val stall = in UInt (stallDir bits)
+    val flush = in Bool()
+    val S_ex2ex_mem = slave(wb2regfileInterface(CoreConfig()))
+    val S_load_store = slave(load_store_interface(CoreConfig()))
+    val M_ex_mem2mem = master(wb2regfileInterface(CoreConfig()))
+    val M_load_store_ex_mem2mem = master(load_store_interface(CoreConfig()))
+  }
+  //val aluop_r = Reg(UInt(AluOpBus bits))  init(EXE_NOP_OP)
+  //val mem_addr_r = Reg(UInt(DataAddrBus bits)) init(ZeroWord)
+  //val mem_data_r = Reg(UInt(DataBus bits)) init(ZeroWord)
+  //val wreg_addr_r = Reg(UInt(RegAddrBus bits)) init(ZeroWord)
+  //val wreg_data_r = Reg(UInt(RegBus bits)) init(ZeroWord)
+  //val wreg_we_r = Reg(Bool()) init(WriteDisable)
 
+  val loadstore_r = Reg(io.S_load_store)
+  loadstore_r.aluop.init(EXE_NOP_OP)
+  loadstore_r.mem_addr.init(ZeroWord)
+  loadstore_r.mem_data.init(ZeroWord)
+  val ex2ex_mem_r = Reg(io.S_ex2ex_mem)
+  ex2ex_mem_r.waddr.init(NOPRegAddr)
+  ex2ex_mem_r.wdata.init(ZeroWord)
+  ex2ex_mem_r.we.init(WriteDisable)
+
+  when(io.rst===RstEnable){
+    loadstore_r.aluop := EXE_NOP_OP
+    loadstore_r.mem_addr := ZeroWord
+    loadstore_r.mem_data := ZeroWord
+    ex2ex_mem_r.waddr := NOPRegAddr
+    ex2ex_mem_r.wdata := ZeroWord
+    ex2ex_mem_r.we := WriteDisable
+  } .elsewhen(io.flush===hasException){
+    loadstore_r.aluop := EXE_NOP_OP
+    loadstore_r.mem_addr := ZeroWord
+    loadstore_r.mem_data := ZeroWord
+    ex2ex_mem_r.waddr := NOPRegAddr
+    ex2ex_mem_r.wdata := ZeroWord
+    ex2ex_mem_r.we := WriteDisable
+  } .elsewhen(io.stall(3)===Stop && io.stall(4)===NoStop){
+    loadstore_r.aluop := EXE_NOP_OP
+    loadstore_r.mem_addr := ZeroWord
+    loadstore_r.mem_data := ZeroWord
+    ex2ex_mem_r.waddr := NOPRegAddr
+    ex2ex_mem_r.wdata := ZeroWord
+    ex2ex_mem_r.we := WriteDisable
+  } .elsewhen(io.stall(3)===NoStop){
+    loadstore_r <> io.S_load_store
+    ex2ex_mem_r <> io.S_ex2ex_mem
+  } .otherwise{
+  // empty
+  }
+  io.M_load_store_ex_mem2mem <> loadstore_r
+  io.M_ex_mem2mem <> ex2ex_mem_r
+}
+
+class mem extends Component with Global_parameter with Interface_MS {
+  val io = new Bundle {
+    val clk = in Bool()
+    val rst = in Bool()
+    val stall = in UInt (stallDir bits)
+    val flush = in Bool()
+    val S_ex_mem2mem = slave(wb2regfileInterface(CoreConfig())) // interface with common regfile
+    val S_load_store_ex_mem2mem = slave(load_store_interface(CoreConfig()))
+    val M_mem2ram = master(ram_interface(CoreConfig())) // interface with DATA RAM
+    val M_mem2mem_wb = master(wb2regfileInterface(CoreConfig()))  // interface with common regfile
+  }
+  // avoid latch
+  io.M_mem2mem_wb.wdata := ZeroWord
+  io.M_mem2mem_wb.we := WriteDisable
+  io.M_mem2mem_wb.waddr := NOPRegAddr
+  io.M_mem2ram.ce := ChipDisable
+  io.M_mem2ram.we := WriteDisable
+  io.M_mem2ram.sel := MemSelZero
+  io.M_mem2ram.addr := ZeroWord
+  io.M_mem2ram.wdata := ZeroWord
+
+  when(io.rst===RstEnable){
+    // to regfile
+    io.M_mem2mem_wb.wdata := ZeroWord
+    io.M_mem2mem_wb.we := WriteDisable
+    io.M_mem2mem_wb.waddr := NOPRegAddr
+    // to RAM
+    io.M_mem2ram.ce := ChipDisable
+    io.M_mem2ram.we := WriteDisable
+    io.M_mem2ram.sel := MemSelZero
+    io.M_mem2ram.addr := ZeroWord
+    io.M_mem2ram.wdata := ZeroWord
+  } .otherwise{
+    switch(io.S_load_store_ex_mem2mem.aluop){
+      is(EXE_LW_OP){
+        // to regfile
+        io.M_mem2mem_wb.wdata := io.M_mem2ram.rdata
+        io.M_mem2mem_wb.we := WriteEnable
+        io.M_mem2mem_wb.waddr := io.S_ex_mem2mem.waddr
+        //  to RAM
+        io.M_mem2ram.ce := ChipEnable
+        io.M_mem2ram.we := WriteDisable
+        io.M_mem2ram.sel := MemSelOne
+        io.M_mem2ram.addr := io.S_load_store_ex_mem2mem.mem_addr
+        //io.M_mem2ram.wdata := ZeroWord
+      }
+      is(EXE_SW_OP){
+        // to regfile
+        //io.M_mem2mem_wb.wdata := io.M_mem2ram.rdata
+        io.M_mem2mem_wb.we := WriteDisable
+        //io.M_mem2mem_wb.waddr := io.S_ex_mem2mem.waddr
+        //  to RAM
+        io.M_mem2ram.ce := ChipEnable
+        io.M_mem2ram.we := WriteEnable
+        io.M_mem2ram.sel := MemSelOne
+        io.M_mem2ram.addr := io.S_load_store_ex_mem2mem.mem_addr
+        io.M_mem2ram.wdata := io.S_load_store_ex_mem2mem.mem_data
+      }
+      // TODO other load & store instructions //
+      default{
+        // to regfile
+        io.M_mem2mem_wb.wdata := ZeroWord
+        io.M_mem2mem_wb.we := WriteDisable
+        io.M_mem2mem_wb.waddr := NOPRegAddr
+        // to RAM
+        io.M_mem2ram.ce := ChipDisable
+        io.M_mem2ram.we := WriteDisable
+        io.M_mem2ram.sel := MemSelZero
+        io.M_mem2ram.addr := ZeroWord
+        io.M_mem2ram.wdata := ZeroWord
+      }
+    }
+
+  }
+
+
+}
+
+class mem_wb extends Component with Global_parameter with Interface_MS {
+  val io = new Bundle {
+    val clk = in Bool()
+    val rst = in Bool()
+    val stall = in UInt (stallDir bits)
+    val flush = in Bool()
+    val S_mem2mem_wb = slave(wb2regfileInterface(CoreConfig()))
+    val M_mem_wb2wb = master(wb2regfileInterface(CoreConfig()))
+  }
+
+  val mem_wb2wb_r = Reg(io.S_mem2mem_wb)
+  mem_wb2wb_r.waddr.init(NOPRegAddr)
+  mem_wb2wb_r.we.init(WriteDisable)
+  mem_wb2wb_r.wdata.init(ZeroWord)
+
+  when(io.rst===RstEnable){
+    mem_wb2wb_r.waddr := NOPRegAddr
+    mem_wb2wb_r.we := WriteDisable
+    mem_wb2wb_r.wdata := ZeroWord
+  } .elsewhen(io.flush===hasException){
+    mem_wb2wb_r.waddr := NOPRegAddr
+    mem_wb2wb_r.we := WriteDisable
+    mem_wb2wb_r.wdata := ZeroWord
+  } .elsewhen(io.stall(4)===Stop && io.stall(5)===NoStop){
+    mem_wb2wb_r.waddr := NOPRegAddr
+    mem_wb2wb_r.we := WriteDisable
+    mem_wb2wb_r.wdata := ZeroWord
+  } .elsewhen(io.stall(4)===NoStop){
+    mem_wb2wb_r <> io.S_mem2mem_wb
+  } .otherwise{
+
+  }
+
+}
+
+class stallCtrl extends Component with Global_parameter with Interface_MS {
+  val io = new Bundle {
+    val clk = in Bool()
+    val rst = in Bool()
+    val stallCtrl_id = in Bool() // 来自id的暂停请求`
+    val stallCtrl_ex = in Bool() // 来自ex的暂停请求
+    val stall = out UInt (stallDir bits) //  暂停控制信号，1表示暂停。  5-回写 4-访存 3-执行 2-译码 1-取值 0-pc计数(pc)
+    // 异常处理相关
+    val epc = in UInt (CPU0RegBus bits)
+    val exceptType = in UInt (ExceptTypeBus bits)
+    val flush = out Bool() // ctrl确认发生异常之信号
+    val newPC = out UInt (InstAddrBus bits) // 重置的新指令地址
+  }
+
+  io.stall := U(0,stallDir bits)
+  io.flush := noException
+  io.newPC := ZeroWord
+/*
+  when(io.rst === RstEnable){
+    io.stall := U(0,stallDir bits)
+  }
+    .elsewhen(io.exceptType =/= ZeroWord){  // 不为ZeroWord说明有异常发生
+      io.stall := U(0,stallDir bits)
+      io.flush := hasException
+      switch(io.exceptType){
+        is(U"32'h01"){  // 触发中断 Interrupt
+          io.newPC := U"32'h20"
+        }
+        is(U"32'h08",U"32'h0a",U"32'h0c",U"32'h0d"){ // 触发 系统调用异常、无效指令异常、自陷异常、溢出异常
+          io.newPC := U"32'h40"
+        }
+        is(U"32'h0e"){  // 异常返回eret
+          io.newPC := io.epc
+        }
+      }
+    }
+    .elsewhen(io.stallCtrl_id === Stop){  // id请求暂停,取值、译码暂停，执行、访存、回写继续
+      io.stall := U"6'b000111"
+    }
+    .elsewhen(io.stallCtrl_ex === Stop){  // ex请求暂停，取值、译码、执行暂停，访存、回写继续
+      io.stall := U"6'001111"
+    }
+    .otherwise()
+*/
+}
+
+class core_logic extends Component with Global_parameter with Interface_MS{
+  val io = new Bundle {
+    val clk = in Bool()
+    val rst = in Bool()
+    val rom_data_i = in UInt (InstBus bits)
+    val rom_addr_o = out UInt (InstAddrBus bits)
+    val rom_ce_o = out Bool()
+    val M_cpu2ram = master(ram_interface(CoreConfig()))
+    // 协处理器
+    //val externalIntr = in UInt (InterruptBus bits)
+    //val timerIntr = out Bool
+  }
+  // 实例化子模块
+  val pc_inst = new pc_reg
+  val if_id_inst = new if_id
+  val id_inst = new id
+  val id_ex_inst = new id_ex
+  val ex_inst = new ex
+  val ex_mem_inst = new ex_mem
+  val mem_inst = new mem
+  val mem_wb_inst = new mem_wb
+  val regfile_inst = new regfile
+  val stallctrl_inst = new stallCtrl
+  // 建立连接关系
+  pc_inst.io.clk := io.clk
+  pc_inst.io.rst := io.rst
+  pc_inst.io.stall := stallctrl_inst.io.stall
+  pc_inst.io.flush := stallctrl_inst.io.flush
+  pc_inst.io.new_pc := stallctrl_inst.io.newPC
+  pc_inst.io.branch_target_pc := ZeroWord // TODO
+  io.rom_ce_o := pc_inst.io.ce
+  io.rom_addr_o := pc_inst.io.pc
+
+  if_id_inst.io.clk := io.clk
+  if_id_inst.io.rst := io.rst
+  if_id_inst.io.stall := stallctrl_inst.io.stall
+  if_id_inst.io.flush := stallctrl_inst.io.flush
+  if_id_inst.io.if_pc := pc_inst.io.pc
+  if_id_inst.io.if_inst := io.rom_data_i
+  if_id_inst.io.M_if_id2id connect id_inst.io.S_if_id2id
+
+  id_inst.io.clk := io.clk
+  id_inst.io.rst := io.rst
+  id_inst.io.stall := stallctrl_inst.io.stall
+  id_inst.io.flush := stallctrl_inst.io.flush
+  id_inst.io.M_id2ex connect id_ex_inst.io.S_id2id_ex
+  id_inst.io.M_id2regfile connect regfile_inst.io.S_id2regfile
+
+  regfile_inst.io.clk := io.clk
+  regfile_inst.io.rst := io.rst
+  regfile_inst.io.S_wb2regfile connect mem_wb_inst.io.M_mem_wb2wb // TODO
+
+  id_ex_inst.io.clk := io.clk
+  id_ex_inst.io.rst := io.rst
+  id_ex_inst.io.stall := stallctrl_inst.io.stall
+  id_ex_inst.io.flush := stallctrl_inst.io.flush
+  id_ex_inst.io.M_id_ex2ex connect ex_inst.io.S_id_ex2ex
+
+  ex_inst.io.clk := io.clk
+  ex_inst.io.rst := io.rst
+  ex_inst.io.stall := stallctrl_inst.io.stall
+  ex_inst.io.flush := stallctrl_inst.io.flush
+  ex_inst.io.M_load_store connect ex_mem_inst.io.S_load_store
+  ex_inst.io.M_ex2ex_mem connect ex_mem_inst.io.S_ex2ex_mem
+
+  ex_mem_inst.io.clk := io.clk
+  ex_mem_inst.io.rst := io.rst
+  ex_mem_inst.io.stall := stallctrl_inst.io.stall
+  ex_mem_inst.io.flush := stallctrl_inst.io.flush
+  ex_mem_inst.io.M_ex_mem2mem connect mem_inst.io.S_ex_mem2mem
+  ex_mem_inst.io.M_load_store_ex_mem2mem connect mem_inst.io.S_load_store_ex_mem2mem
+
+  mem_inst.io.clk := io.clk
+  mem_inst.io.rst := io.rst
+  mem_inst.io.stall := stallctrl_inst.io.stall
+  mem_inst.io.flush := stallctrl_inst.io.flush
+  mem_inst.io.M_mem2mem_wb connect mem_wb_inst.io.S_mem2mem_wb
+  mem_inst.io.M_mem2ram connect io.M_cpu2ram
+
+}
+
+class ROM extends Component with Global_parameter{
+  val io = new Bundle{
+    val ce = in Bool()
+    val pc = in UInt(InstAddrBus bits)
+    val inst = out UInt(InstBus bits)
+  }
+
+  val init_array = new Array[UInt](InstMemNum)
+  // ORI指令的测试
+  //  init_array(0)=U"32'h34011100"
+  //  init_array(1)=U"32'h34020020"
+  //  init_array(2)=U"32'h3403ff00"
+  //  init_array(3)=U"32'h3404ffff"
+  // 数据前推的测试
+  //  init_array(0)=U"32'h34011100"
+  //  init_array(1)=U"32'h34210020"
+  //  init_array(2)=U"32'h34214400"
+  //  init_array(3)=U"32'h34210044"
+
+  // 逻辑测试
+  init_array(0) = U"32'h3c010101"
+  init_array(1) = U"32'h34210101"
+  init_array(2) = U"32'h34221100"
+  init_array(3) = U"32'h00220825"
+  init_array(4) = U"32'h302300fe"
+  init_array(5) = U"32'h00610824"
+  init_array(6) = U"32'h3824ff00"
+  init_array(7) = U"32'h00810826"
+  init_array(8) = U"32'h00810827"
+
+  for(i <- 9 until InstMemNum) {init_array(i)=U"32'h00000000"}
+
+  //  val mem_rom = Mem(UInt(InstBus bits),InstMemNum)
+  val mem_rom = Mem(UInt(InstBus bits),initialContent = init_array)
+  when( io.ce === ChipDisable){
+    io.inst := ZeroWord
+  }.otherwise{
+    io.inst := mem_rom(io.pc(InstMemNumLog2+1 downto 2))  // 所以取pc_addr具有32bits，而ROM储存区条目只有InstMemNum（2^17=131071)
+    // 所以取pc_addr[16:0]，又因为pc_addr每一clk加2^2=4，相当于低端的2位没有作用
+    // 或者说，等同于pc_addr右移2bit，故而取pc_addr[18:2]即可反映Ori指令下的地址
+  }
+}
+
+class RAM extends Component with Global_parameter with Interface_MS {
+  val io = new Bundle{
+    val clk = in Bool()
+    val rst = in Bool()
+    val S_mem2ram = slave(ram_interface(CoreConfig()))
+  }
+
+  val ram_0 = Mem(UInt(ByteWidth bits),DataMemNum)  // 每个ram模块内含8bit*DataMemNum的数据，则四个ram并行共有32bit数据
+  val ram_1 = Mem(UInt(ByteWidth bits),DataMemNum)
+  val ram_2 = Mem(UInt(ByteWidth bits),DataMemNum)
+  val ram_3 = Mem(UInt(ByteWidth bits),DataMemNum)
+
+  // 读内存操作,mem访存请求读取内存时，内存一次提供字，由mem决定取字的字节/半字/全字
+  when(io.S_mem2ram.ce === ChipEnable){
+    when(io.S_mem2ram.we === WriteDisable){
+      // 取对应地址（去掉后两位，即对齐4字节，共取16bit地址）
+      io.S_mem2ram.rdata := ram_3(io.S_mem2ram.addr(DataMemNumLog2+1 downto 2)) @@
+        ram_2(io.S_mem2ram.addr(DataMemNumLog2+1 downto 2)) @@
+        ram_1(io.S_mem2ram.addr(DataMemNumLog2+1 downto 2)) @@
+        ram_0(io.S_mem2ram.addr(DataMemNumLog2+1 downto 2))
+    }
+      .otherwise{
+        io.S_mem2ram.rdata := ZeroWord
+      }
+  }
+    .otherwise{
+      io.S_mem2ram.rdata := ZeroWord  // 防止latch
+    }
+
+  /*
+  // 写操作：时序逻辑电路, rst==RstDisable触发
+  val wClockDomain = ClockDomain(
+    clock = io.clk,
+    reset = null,
+    config = ClockConfig_rstH
+  )
+  */
+
+  val r_ramAddr = io.S_mem2ram.addr(DataMemNumLog2+1 downto 2)  // 舍去原始地址后两位，对齐4的倍数
+  val r_ram0En = io.S_mem2ram.sel(0)
+  val r_ram1En = io.S_mem2ram.sel(1)
+  val r_ram2En = io.S_mem2ram.sel(2)
+  val r_ram3En = io.S_mem2ram.sel(3)
+  val r_data0 = io.S_mem2ram.wdata(7 downto 0)
+  val r_data1 = io.S_mem2ram.wdata(15 downto 8)
+  val r_data2 = io.S_mem2ram.wdata(23 downto 16)
+  val r_data3 = io.S_mem2ram.wdata(31 downto 24)
+
+  //val areaClk = new ClockingArea(wClockDomain) {
+    ram_0.write(
+      address = r_ramAddr,
+      data = r_data0,
+      enable = r_ram0En && (io.S_mem2ram.ce === ChipEnable) && (io.S_mem2ram.we === WriteEnable)
+    )
+    ram_1.write(
+      address = r_ramAddr,
+      data = r_data1,
+      enable = r_ram1En && (io.S_mem2ram.ce === ChipEnable) && (io.S_mem2ram.we === WriteEnable)
+    )
+    ram_2.write(
+      address = r_ramAddr,
+      data = r_data2,
+      enable = r_ram2En && (io.S_mem2ram.ce === ChipEnable) && (io.S_mem2ram.we === WriteEnable)
+    )
+    ram_3.write(
+      address = r_ramAddr,
+      data = r_data3,
+      enable = r_ram3En && (io.S_mem2ram.ce === ChipEnable) && (io.S_mem2ram.we === WriteEnable)
+    )
+  //}
+}
+
+class core extends Component with Global_parameter{
+  val io = new Bundle {
+    val clk = in Bool()
+    val rst = in Bool()
+  }
+  // 实例化子模块
+  val core_logic_inst = new core_logic
+  val core_rom_inst = new ROM
+  val core_ram_inst = new RAM
+  // 建立连接关系
+  core_logic_inst.io.clk := io.clk
+  core_logic_inst.io.rst := io.rst
+  core_rom_inst.io.ce := core_logic_inst.io.rom_ce_o
+  core_rom_inst.io.pc := core_logic_inst.io.rom_addr_o
+  core_logic_inst.io.rom_data_i := core_rom_inst.io.inst
+  core_logic_inst.io.M_cpu2ram connect core_ram_inst.io.S_mem2ram
 }
 
 trait Interface_MS extends Global_parameter {
@@ -472,11 +1081,12 @@ trait Interface_MS extends Global_parameter {
     val reg2_data = UInt(RegBus bits)
     val wreg_we = Bool()
     val wreg_addr = UInt(RegAddrBus bits)
+    val inst = UInt(InstBus bits)
     //val inst = UInt(InstBus bits)
     //val is_in_delayslot = Bool()
     //val link_addr = UInt(InstAddrBus bits)
     override def asMaster(): Unit = {
-      out(aluop,alusel,reg1_data,reg2_data,wreg_we,wreg_addr)
+      out(aluop,alusel,reg1_data,reg2_data,wreg_we,wreg_addr,inst)
     }
   }
 
@@ -489,25 +1099,48 @@ trait Interface_MS extends Global_parameter {
     val reg2_data = UInt(RegBus bits)
     val wreg_we = Bool()
     val wreg_addr = UInt(RegAddrBus bits)
+    val inst = UInt(InstBus bits)
     //val inst = UInt(InstBus bits)
     //val is_in_delayslot = Bool()
     //val link_addr = UInt(InstAddrBus bits)
     override def asMaster(): Unit = {
-      out(aluop,alusel,reg1_data,reg2_data,wreg_we,wreg_addr)
+      out(aluop,alusel,reg1_data,reg2_data,wreg_we,wreg_addr,inst)
     }
   }
 
-
-
   // 使用wInterface贯穿 EX-->EX/MEM-->MEM-->MEM/WB-->regFile过程
   case class wb2regfileInterface(config: CoreConfig)extends Bundle with IMasterSlave {
-    val wdata = UInt(DataBus bits)
-    val waddr = UInt(DataAddrBus bits)
+    val wdata = UInt(RegBus bits)
+    val waddr = UInt(RegAddrBus bits)
     val we = Bool()
     override def asMaster(): Unit = {
       out(wdata)
       out(waddr)
       out(we)
+    }
+  }
+
+  case class ram_interface(config: CoreConfig)extends Bundle with IMasterSlave {
+    val ce = Bool()
+    val we = Bool()
+    val sel = UInt(MemSelBus bits)
+    val addr = UInt(DataAddrBus bits)
+    val wdata = UInt(DataBus bits)
+    val rdata = UInt(DataBus bits)
+    override def asMaster(): Unit = {
+      out(ce,we,sel,addr,wdata)
+      in(rdata)
+    }
+  }
+
+  case class load_store_interface(config: CoreConfig) extends Bundle with IMasterSlave {
+    //  Address and control
+    val aluop = UInt(AluOpBus bits)
+    val mem_data = UInt(DataBus bits)
+    val mem_addr = UInt(DataAddrBus bits)
+
+    override def asMaster(): Unit = {
+      out(aluop,mem_data,mem_addr)
     }
   }
 }
@@ -516,13 +1149,21 @@ case class CoreConfig(){
   // TODO as Global Parameters //
 }
 
-
-//Generate the MIPS32's Verilog
-object MIPS32Verilog {
+//Generate the MyTopLevel's Verilog
+object MIPS32 {
   def main(args: Array[String]) {
-    SpinalVerilog(new pc_reg)
+    SpinalVerilog(new core)
   }
 }
+object CoreConfig extends SpinalConfig(defaultConfigForClockDomains = ClockDomainConfig(resetKind = SYNC))
+//Generate the MyTopLevel's Verilog using the above custom configuration.
+object MIPS32Verilog {
+  def main(args: Array[String]) {
+    CoreConfig
+      .generateVerilog(new core)  // module name
+  }
+}
+
 
 trait Global_parameter{
   // 全局参数

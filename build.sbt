@@ -1,4 +1,4 @@
-name := "MIPS32"
+name := "CPU"
 ThisBuild / version := "1.0"
 ThisBuild / scalaVersion := "2.12.15"
 
@@ -8,6 +8,11 @@ val spinalLib = "com.github.spinalhdl" %% "spinalhdl-lib" % spinalVersion
 val spinalIdslPlugin = compilerPlugin("com.github.spinalhdl" %% "spinalhdl-idsl-plugin" % spinalVersion)
 
 lazy val mylib = (project in file("."))
+  .settings(
+    name := "SpinalTemplateSbt",
+    libraryDependencies ++= Seq(spinalCore, spinalLib, spinalIdslPlugin)
+  )
+lazy val cutelib = (project in file("."))
   .settings(
     name := "SpinalTemplateSbt",
     libraryDependencies ++= Seq(spinalCore, spinalLib, spinalIdslPlugin)

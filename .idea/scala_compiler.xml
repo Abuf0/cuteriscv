@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ScalaCompilerConfiguration">
     <option name="separateProdTestSources" value="false" />
-    <profile name="sbt 1" modules="MIPS32">
+    <profile name="sbt 1" modules="CPU,MIPS32">
       <plugins>
         <plugin path="C:\Users\ABUFF\AppData\Local\Coursier\Cache\v1\https\repo1.maven.org\maven2\com\github\spinalhdl\spinalhdl-idsl-plugin_2.12\1.6.0\spinalhdl-idsl-plugin_2.12-1.6.0.jar" />
       </plugins>

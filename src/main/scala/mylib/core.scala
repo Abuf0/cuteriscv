@@ -169,8 +169,11 @@ class id extends Component with Global_parameter with Interface_MS {
     val S_if_id2id = slave(if_id2id_interface(CoreConfig()))
     val M_id2regfile = master(id2regfile_interface(CoreConfig()))
     val M_id2ex = master(id2id_ex_interface(CoreConfig()))
+    val M_branch_id2pc = master(branch_interface(CoreConfig()))
+    val M_delayslot_id2id_ex = master(delayslot_interface(CoreConfig()))
   }
-  def ADD                = M"000000---------------00000100100"
+
+  def AND                = M"000000---------------00000100100"
   def OR                 = M"000000---------------00000100101"
   def XOR                = M"000000---------------00000100111"
   def NOR                = M"000000---------------00000100111"
@@ -190,6 +193,53 @@ class id extends Component with Global_parameter with Interface_MS {
   def MFLO               = M"00000000000----------00000010010"
   def MTHI               = M"000000-----000000000000000010001"
   def MTLO               = M"000000-----000000000000000010011"
+  def ADD                = M"000000---------------00000100000"
+  def ADDU               = M"000000---------------00000100001"
+  def SUB                = M"000000---------------00000100010"
+  def SUBU               = M"000000---------------00000100011"
+  def SLT                = M"000000---------------00000101010"
+  def SLTU               = M"000000---------------00000101011"
+  def MULT               = M"000000----------0000000000011000"
+  def MULTU              = M"000000----------0000000000011001"
+  def DIV                = M"000000----------0000000000011010"
+  def DIVU               = M"000000----------0000000000011011"
+  def MADD               = M"011100----------0000000000000000"
+  def MADDU              = M"011100----------0000000000000001"
+  def MSUB               = M"011100----------0000000000000100"
+  def MSUBU              = M"011100----------0000000000000101"
+  def CLZ                = M"011100---------------00000100000"
+  def CLO                = M"011100---------------00000100001"
+  def MUL                = M"011100---------------00000000010"
+  def ADDI               = M"001000--------------------------"
+  def ADDIU              = M"001001--------------------------"
+  def SLTI               = M"001010--------------------------"
+  def SLTIU              = M"001011--------------------------"
+  def JR                 = M"000000-----000000000000000001000"
+  def JALR               = M"000000-----00000-----00000001001"
+  def J                  = M"000010--------------------------"
+  def JAL                = M"000011--------------------------"
+  def BEQ                = M"000100--------------------------"
+  //def B                  = M"0001000000000000----------------"
+  def BGTZ               = M"000111-----00000----------------"
+  def BLEZ               = M"000110-----00000----------------"
+  def BNE                = M"000101--------------------------"
+  def REGIMM             = M"000001------000-----------------"
+  def LB                 = M"100000--------------------------"
+  def LBU                = M"100100--------------------------"
+  def LH                 = M"100001--------------------------"
+  def LHU                = M"100101--------------------------"
+  def LW                 = M"100011--------------------------"
+  def SB                 = M"101000--------------------------"
+  def SH                 = M"101001--------------------------"
+  def SW                 = M"101011--------------------------"
+  def LWL                = M"100010--------------------------"
+  def LWR                = M"100110--------------------------"
+  def SWL                = M"101010--------------------------"
+  def SWR                = M"101110--------------------------"
+  def LL                 = M"110000--------------------------"
+  def SC                 = M"111000--------------------------"
+// TODO for exception instructions //
+  def NOP                = M"00000000000000000000000000000000"
 
   // 指令判断过程：
   // op [31:26] -->  ==SPECIAL  --> op2 [10:6]=0 --> op3 [5:0] 决定 or/and/xor/nor/sllv/srlv/srav/sync
@@ -243,10 +293,15 @@ class id extends Component with Global_parameter with Interface_MS {
   // pc相关
   //io.M_branch_id2pcReg.brach_flag := NotBranch
   //io.M_branch_id2pcReg.brach_targetAddress := ZeroWord
+  io.M_branch_id2pc.branch_flag := NotBranch
+  io.M_branch_id2pc.branch_targetaddr := ZeroWord
   // idEx相关
   //io.M_branch_id2idEx.link_addr := ZeroWord
   //io.M_branch_id2idEx.next_inst_inDelayslot := NotInDelaySlot
   //io.M_branch_id2idEx.is_inDelayslot := NotInDelaySlot
+  io.M_delayslot_id2id_ex.link_addr := ZeroWord
+  io.M_delayslot_id2id_ex.next_inst_delayslot := NotInDelaySlot
+  io.M_delayslot_id2id_ex.is_delayslot := NotInDelaySlot
 
   when(io.rst===RstEnable) {
     isInstValid := InstInvalid  // 指令有效标记位，初始时记为无效指令
@@ -416,7 +471,7 @@ class id extends Component with Global_parameter with Interface_MS {
     }
     */
     switch(io.S_if_id2id.inst){
-      is(ADD){
+      is(AND){
         isInstValid := InstValid
         io.M_id2ex.alusel := EXE_RES_LOGIC
         io.M_id2ex.aluop := EXE_AND_OP
@@ -468,6 +523,9 @@ class id extends Component with Global_parameter with Interface_MS {
         io.M_id2regfile.reg2_rden := ReadDisable
         imm := io.S_if_id2id.inst(15 downto 0).resize(RegBus bits)
       }
+      is(LUI){
+        //TODO//
+      }
       is(ORI){
         isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
         io.M_id2ex.alusel := EXE_RES_LOGIC // 运算类型（逻辑or算数）
@@ -478,7 +536,613 @@ class id extends Component with Global_parameter with Interface_MS {
         io.M_id2regfile.reg2_rden := ReadDisable
         imm := io.S_if_id2id.inst(15 downto 0).resize(RegBus bits)
       }
-
+      is(SLL){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_SHIFT
+        io.M_id2ex.aluop := EXE_SLL_OP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadEnable
+        imm := io.S_if_id2id.inst(10 downto 6).resize(RegBus bits)
+      }
+      is(SRL){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_SHIFT
+        io.M_id2ex.aluop := EXE_SRL_OP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadEnable
+        imm := io.S_if_id2id.inst(10 downto 6).resize(RegBus bits)
+      }
+      is(SRA){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_SHIFT
+        io.M_id2ex.aluop := EXE_SRA_OP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadEnable
+        imm := io.S_if_id2id.inst(10 downto 6).resize(RegBus bits)
+      }
+      is(SLLV){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_SHIFT
+        io.M_id2ex.aluop := EXE_SLLV_OP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+        imm := io.S_if_id2id.inst(10 downto 6).resize(RegBus bits)
+      }
+      is(SRLV){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_SHIFT
+        io.M_id2ex.aluop := EXE_SRLV_OP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+        imm := io.S_if_id2id.inst(10 downto 6).resize(RegBus bits)
+      }
+      is(SRAV){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_SHIFT
+        io.M_id2ex.aluop := EXE_SRAV_OP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+        imm := io.S_if_id2id.inst(10 downto 6).resize(RegBus bits)
+      }
+      is(MOVN){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_MOVE
+        io.M_id2ex.aluop := EXE_MOVN_OP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(MOVZ){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_MOVE
+        io.M_id2ex.aluop := EXE_MOVZ_OP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(MFHI){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_NOP
+        io.M_id2ex.aluop := EXE_MFHI_OP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadDisable
+      }
+      is(MFLO){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_NOP
+        io.M_id2ex.aluop := EXE_MFLO_OP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadDisable
+      }
+      is(MTHI){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_NOP
+        io.M_id2ex.aluop := EXE_MTHI_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadDisable
+      }
+      is(MTLO){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_NOP
+        io.M_id2ex.aluop := EXE_MTLO_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadDisable
+      }
+      is(ADD){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_ARITHMETIC // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_ADD_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(ADDU){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_ARITHMETIC // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_ADDU_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(SUB){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_ARITHMETIC // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_SUB_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(SUBU){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_ARITHMETIC // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_SUBU_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(SLT){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_ARITHMETIC // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_SLT_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(SLTU){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_ARITHMETIC // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_SLTU_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(MULT){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_NOP// 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_MULT_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(MULTU){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_NOP // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_MULTU_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(DIV){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_NOP// 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_DIV_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(DIVU){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_NOP // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_DIVU_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(MADD){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_NOP// 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_MADD_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(MADDU){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_NOP // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_MADDU_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(MSUB){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_NOP// 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_MSUB_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(MSUBU){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_NOP // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_MSUBU_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(CLZ){
+        //TODO//
+      }
+      is(CLO){
+        //TODO//
+      }
+      is(MUL){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_MUL // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_MUL_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(ADDI){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_ARITHMETIC // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_ADDI_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_addr := op3 // [20:16]
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadDisable
+        imm := io.S_if_id2id.inst(15 downto 0).resize(RegBus bits)
+      }
+      is(ADDIU){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_ARITHMETIC // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_ADDIU_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_addr := op3 // [20:16]
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadDisable
+        imm := io.S_if_id2id.inst(15 downto 0).resize(RegBus bits)
+      }
+      is(SLTI){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_ARITHMETIC // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_SLTI_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_addr := op3 // [20:16]
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadDisable
+        imm := io.S_if_id2id.inst(15 downto 0).resize(RegBus bits)
+      }
+      is(SLTIU){
+        isInstValid := InstValid  // 指令有效标记位，初始时记为无效指令
+        io.M_id2ex.alusel := EXE_RES_ARITHMETIC // 运算类型（逻辑or算数）
+        io.M_id2ex.aluop := EXE_SLTIU_OP // 运算子类型（如：逻辑类型下的 and、or、not,默认为NOP
+        io.M_id2ex.wreg_addr := op3 // [20:16]
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadDisable
+        imm := io.S_if_id2id.inst(15 downto 0).resize(RegBus bits)
+      }
+      is(JR){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_JUMP_BRANCH
+        io.M_id2ex.aluop := EXE_JR_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadDisable
+        // TODO with branch & jump //
+        io.M_branch_id2pc.branch_flag := Branch
+        io.M_branch_id2pc.branch_targetaddr := io.M_id2ex.reg1_data
+        io.M_delayslot_id2id_ex.is_delayslot := InDelaySlot
+        // pc相关
+        //io.M_branch_id2pcReg.brach_flag := Branch
+        //io.M_branch_id2pcReg.brach_targetAddress := io.M_id2idEx.reg1  // 取rs的值作为新的指令地址
+        // idEx相关
+        //io.M_branch_id2idEx.next_inst_inDelayslot := InDelaySlot
+      }
+      is(JALR){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_JUMP_BRANCH
+        io.M_id2ex.aluop := EXE_JALR_OP
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadDisable
+        // TODO with branch & jump //
+        io.M_branch_id2pc.branch_flag := Branch
+        io.M_branch_id2pc.branch_targetaddr := io.M_id2ex.reg1_data
+        io.M_delayslot_id2id_ex.is_delayslot := InDelaySlot
+        io.M_delayslot_id2id_ex.next_inst_delayslot := InDelaySlot
+        io.M_delayslot_id2id_ex.link_addr := io.S_if_id2id.pc + 8
+        // pc相关
+        //io.M_branch_id2pcReg.brach_flag := Branch
+        //io.M_branch_id2pcReg.brach_targetAddress := io.M_id2idEx.reg1  // 取rs的值作为新的指令地址
+        // idEx相关
+        //io.M_branch_id2idEx.next_inst_inDelayslot := InDelaySlot
+      }
+      is(J){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_JUMP_BRANCH
+        io.M_id2ex.aluop := EXE_J_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadDisable
+        // TODO with branch & jump //
+        io.M_branch_id2pc.branch_flag := Branch
+        io.M_branch_id2pc.branch_targetaddr := (io.S_if_id2id.pc+4)(InstAddrBus-1 downto InstAddrBus-4)@@io.S_if_id2id.inst(InstAddrBus-7 downto 0)@@U"2'b00"
+        io.M_delayslot_id2id_ex.is_delayslot := InDelaySlot
+        io.M_delayslot_id2id_ex.next_inst_delayslot := InDelaySlot
+        // pc相关
+        //io.M_branch_id2pcReg.brach_flag := Branch
+        //io.M_branch_id2pcReg.brach_targetAddress := io.M_id2idEx.reg1  // 取rs的值作为新的指令地址
+        // idEx相关
+        //io.M_branch_id2idEx.next_inst_inDelayslot := InDelaySlot
+      }
+      is(JAL){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_JUMP_BRANCH
+        io.M_id2ex.aluop := EXE_JAL_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadDisable
+        // TODO with branch & jump //
+        io.M_branch_id2pc.branch_flag := Branch
+        io.M_branch_id2pc.branch_targetaddr := (io.S_if_id2id.pc+4)(InstAddrBus-1 downto InstAddrBus-4)@@io.S_if_id2id.inst(InstAddrBus-7 downto 0)@@U"2'b00"
+        io.M_delayslot_id2id_ex.is_delayslot := InDelaySlot
+        io.M_delayslot_id2id_ex.next_inst_delayslot := InDelaySlot
+        io.M_delayslot_id2id_ex.link_addr := io.S_if_id2id.pc + 8
+        // pc相关
+        //io.M_branch_id2pcReg.brach_flag := Branch
+        //io.M_branch_id2pcReg.brach_targetAddress := io.M_id2idEx.reg1  // 取rs的值作为新的指令地址
+        // idEx相关
+        //io.M_branch_id2idEx.next_inst_inDelayslot := InDelaySlot
+      }
+      is(BEQ) {
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_JUMP_BRANCH
+        io.M_id2ex.aluop := EXE_BEQ_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadEnable
+        // TODO with branch & jump //
+        when(io.M_id2ex.reg1_data === io.M_id2ex.reg2_data) {
+        io.M_branch_id2pc.branch_flag := Branch
+        //io.M_branch_id2pc.branch_targetaddr := (io.S_if_id2id.pc + 4) + ((InstAddrBus-1 downto InstAddrBus-2)->io.S_if_id2id.inst(InstAddrBus-3), io.S_if_id2id.inst(InstAddrBus-3 downto 0) @@ U"2'b00")
+        io.M_delayslot_id2id_ex.is_delayslot := InDelaySlot
+      } .otherwise{}
+        // pc相关
+        //io.M_branch_id2pcReg.brach_flag := Branch
+        //io.M_branch_id2pcReg.brach_targetAddress := io.M_id2idEx.reg1  // 取rs的值作为新的指令地址
+        // idEx相关
+        //io.M_branch_id2idEx.next_inst_inDelayslot := InDelaySlot
+      }
+      is(BGTZ){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_JUMP_BRANCH
+        io.M_id2ex.aluop := EXE_BGTZ_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadDisable
+        // TODO with branch & jump //
+        when(io.M_id2ex.reg1_data > 0) {
+          io.M_branch_id2pc.branch_flag := Branch
+          //io.M_branch_id2pc.branch_targetaddr := (io.S_if_id2id.pc + 4) + ((InstAddrBus-1 downto InstAddrBus-2)->io.S_if_id2id.inst(InstAddrBus-3), io.S_if_id2id.inst(InstAddrBus-3 downto 0) @@ U"2'b00")
+          io.M_delayslot_id2id_ex.is_delayslot := InDelaySlot
+        } .otherwise{}
+        // pc相关
+        //io.M_branch_id2pcReg.brach_flag := Branch
+        //io.M_branch_id2pcReg.brach_targetAddress := io.M_id2idEx.reg1  // 取rs的值作为新的指令地址
+        // idEx相关
+        //io.M_branch_id2idEx.next_inst_inDelayslot := InDelaySlot
+      }
+      is(BLEZ){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_JUMP_BRANCH
+        io.M_id2ex.aluop := EXE_BLEZ_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadDisable
+        // TODO with branch & jump //
+        when(io.M_id2ex.reg1_data <= 0) {
+          io.M_branch_id2pc.branch_flag := Branch
+          //io.M_branch_id2pc.branch_targetaddr := (io.S_if_id2id.pc + 4) + ((InstAddrBus-1 downto InstAddrBus-2)->io.S_if_id2id.inst(InstAddrBus-3), io.S_if_id2id.inst(InstAddrBus-3 downto 0) @@ U"2'b00")
+          io.M_delayslot_id2id_ex.is_delayslot := InDelaySlot
+        } .otherwise{}
+        // pc相关
+        //io.M_branch_id2pcReg.brach_flag := Branch
+        //io.M_branch_id2pcReg.brach_targetAddress := io.M_id2idEx.reg1  // 取rs的值作为新的指令地址
+        // idEx相关
+        //io.M_branch_id2idEx.next_inst_inDelayslot := InDelaySlot
+      }
+      is(BNE){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_JUMP_BRANCH
+        io.M_id2ex.aluop := EXE_BNE_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadDisable
+        // TODO with branch & jump //
+        when(io.M_id2ex.reg1_data =/= io.M_id2ex.reg2_data) {
+          io.M_branch_id2pc.branch_flag := Branch
+          //io.M_branch_id2pc.branch_targetaddr := (io.S_if_id2id.pc + 4) + ((InstAddrBus-1 downto InstAddrBus-2)->io.S_if_id2id.inst(InstAddrBus-3), io.S_if_id2id.inst(InstAddrBus-3 downto 0) @@ U"2'b00")
+          io.M_delayslot_id2id_ex.is_delayslot := InDelaySlot
+        } .otherwise{}
+        // pc相关
+        //io.M_branch_id2pcReg.brach_flag := Branch
+        //io.M_branch_id2pcReg.brach_targetAddress := io.M_id2idEx.reg1  // 取rs的值作为新的指令地址
+        // idEx相关
+        //io.M_branch_id2idEx.next_inst_inDelayslot := InDelaySlot
+      }
+      is(REGIMM){
+        //isInstValid := InstValid
+        //io.M_id2ex.alusel := EXE_RES_JUMP_BRANCH
+        //io.M_id2ex.aluop := EXE_JR_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        //io.M_id2regfile.reg1_rden := ReadEnable
+        io.M_id2regfile.reg2_rden := ReadDisable
+        // TODO with branch & jump //
+        // pc相关
+        //io.M_branch_id2pcReg.brach_flag := Branch
+        //io.M_branch_id2pcReg.brach_targetAddress := io.M_id2idEx.reg1  // 取rs的值作为新的指令地址
+        // idEx相关
+        //io.M_branch_id2idEx.next_inst_inDelayslot := InDelaySlot
+        switch(op3){
+          is(EXE_BLTZ){
+            isInstValid := InstValid
+            io.M_id2ex.alusel := EXE_RES_JUMP_BRANCH
+            io.M_id2ex.aluop := EXE_BLTZ_OP
+            io.M_id2regfile.reg1_rden := ReadEnable
+            when(io.M_id2ex.reg1_data < 0) {
+              io.M_branch_id2pc.branch_flag := Branch
+              //io.M_branch_id2pc.branch_targetaddr := (io.S_if_id2id.pc + 4) + ((InstAddrBus-1 downto InstAddrBus-2)->io.S_if_id2id.inst(InstAddrBus-3), io.S_if_id2id.inst(InstAddrBus-3 downto 0) @@ U"2'b00")
+              io.M_delayslot_id2id_ex.is_delayslot := InDelaySlot
+            } .otherwise{}
+          }
+          is(EXE_BLTZAL){
+            isInstValid := InstValid
+            io.M_id2ex.alusel := EXE_RES_JUMP_BRANCH
+            io.M_id2ex.aluop := EXE_BLTZAL_OP
+            io.M_id2regfile.reg1_rden := ReadEnable
+            when(io.M_id2ex.reg1_data <0 ) {
+              io.M_branch_id2pc.branch_flag := Branch
+              //io.M_branch_id2pc.branch_targetaddr := (io.S_if_id2id.pc + 4) + ((InstAddrBus-1 downto InstAddrBus-2)->io.S_if_id2id.inst(InstAddrBus-3), io.S_if_id2id.inst(InstAddrBus-3 downto 0) @@ U"2'b00")
+              io.M_delayslot_id2id_ex.is_delayslot := InDelaySlot
+              io.M_delayslot_id2id_ex.next_inst_delayslot := InDelaySlot
+              io.M_delayslot_id2id_ex.link_addr := io.S_if_id2id.pc + 8
+            } .otherwise{}
+          }
+          is(EXE_BGEZ){
+            isInstValid := InstValid
+            io.M_id2ex.alusel := EXE_RES_JUMP_BRANCH
+            io.M_id2ex.aluop := EXE_BGEZ_OP
+            io.M_id2regfile.reg1_rden := ReadEnable
+            when(io.M_id2ex.reg1_data >= 0) {
+              io.M_branch_id2pc.branch_flag := Branch
+              //io.M_branch_id2pc.branch_targetaddr := (io.S_if_id2id.pc + 4) + ((InstAddrBus-1 downto InstAddrBus-2)->io.S_if_id2id.inst(InstAddrBus-3), io.S_if_id2id.inst(InstAddrBus-3 downto 0) @@ U"2'b00")
+              io.M_delayslot_id2id_ex.is_delayslot := InDelaySlot
+            } .otherwise{}
+          }
+          is(EXE_BGEZAL){
+            isInstValid := InstValid
+            io.M_id2ex.alusel := EXE_RES_JUMP_BRANCH
+            io.M_id2ex.aluop := EXE_BGEZAL_OP
+            io.M_id2regfile.reg1_rden := ReadEnable
+            when(io.M_id2ex.reg1_data >= 0 ) {
+              io.M_branch_id2pc.branch_flag := Branch
+              //io.M_branch_id2pc.branch_targetaddr := (io.S_if_id2id.pc + 4) + ((InstAddrBus-1 downto InstAddrBus-2)->io.S_if_id2id.inst(InstAddrBus-3), io.S_if_id2id.inst(InstAddrBus-3 downto 0) @@ U"2'b00")
+              io.M_delayslot_id2id_ex.is_delayslot := InDelaySlot
+              io.M_delayslot_id2id_ex.next_inst_delayslot := InDelaySlot
+              io.M_delayslot_id2id_ex.link_addr := io.S_if_id2id.pc + 8
+            } .otherwise{}
+          }
+          default{
+            isInstValid := InstInvalid
+            io.M_id2ex.alusel := EXE_RES_NOP
+            io.M_id2ex.aluop := EXE_NOP_OP
+            io.M_id2regfile.reg1_rden := ReadDisable
+          }
+        }
+      }
+      is(LB){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOAD_STORE
+        io.M_id2ex.aluop := EXE_LB_OP
+        io.M_id2ex.wreg_addr := op3
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(LBU){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOAD_STORE
+        io.M_id2ex.aluop := EXE_LBU_OP
+        io.M_id2ex.wreg_addr := op3
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(LH){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOAD_STORE
+        io.M_id2ex.aluop := EXE_LH_OP
+        io.M_id2ex.wreg_addr := op3
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(LHU){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOAD_STORE
+        io.M_id2ex.aluop := EXE_LHU_OP
+        io.M_id2ex.wreg_addr := op3
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(LW){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOAD_STORE
+        io.M_id2ex.aluop := EXE_LW_OP
+        io.M_id2ex.wreg_addr := op3
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(SB){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOAD_STORE
+        io.M_id2ex.aluop := EXE_SB_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(SH){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOAD_STORE
+        io.M_id2ex.aluop := EXE_SH_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(SW){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOAD_STORE
+        io.M_id2ex.aluop := EXE_SW_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(LWL){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOAD_STORE
+        io.M_id2ex.aluop := EXE_LWL_OP
+        io.M_id2ex.wreg_addr := op3
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(LWR){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOAD_STORE
+        io.M_id2ex.aluop := EXE_LWR_OP
+        io.M_id2ex.wreg_addr := op3
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(SWL){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOAD_STORE
+        io.M_id2ex.aluop := EXE_SWL_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(SWR){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOAD_STORE
+        io.M_id2ex.aluop := EXE_SWR_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(LL){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOAD_STORE
+        io.M_id2ex.aluop := EXE_LL_OP
+        io.M_id2ex.wreg_addr := op3
+        io.M_id2ex.wreg_we := WriteEnable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
+      is(SC){
+        isInstValid := InstValid
+        io.M_id2ex.alusel := EXE_RES_LOAD_STORE
+        io.M_id2ex.aluop := EXE_SC_OP
+        io.M_id2ex.wreg_we := WriteDisable
+        io.M_id2regfile.reg1_rden := ReadDisable
+        io.M_id2regfile.reg2_rden := ReadEnable
+      }
       default{
         isInstValid := InstInvalid
         io.M_id2ex.alusel := EXE_RES_NOP
@@ -502,7 +1166,7 @@ class id extends Component with Global_parameter with Interface_MS {
   when(io.rst===RstEnable){
     io.M_id2ex.reg2_data := ZeroWord
   } .elsewhen(io.M_id2regfile.reg2_rden===ReadDisable){
-    io.M_id2ex.reg2_data := imm
+    io.M_id2ex.reg2_data := imm // reg2_data --> imm
   } .elsewhen(True){  // ignore hazard
     io.M_id2ex.reg2_data := io.M_id2regfile.reg2_data
   } .otherwise{
@@ -579,20 +1243,122 @@ class ex extends Component with Global_parameter with Interface_MS {
   val res = UInt(RegBus bits)
   val data1 = io.S_id_ex2ex.reg1_data
   val data2 = io.S_id_ex2ex.reg2_data
-  switch(io.S_id_ex2ex.aluop){
-    is(EXE_AND_OP | EXE_ANDI_OP){
-      res := data1 & data2
+
+  //val res_logic = UInt(RegBus bits)
+  //val res_arith = UInt(RegBus bits)
+  //val res_shift = UInt(RegBus bits)
+  //val res_move = UInt(RegBus bits)
+  //val res_jumpbranch = UInt(RegBus bits)
+
+  res := ZeroWord
+
+  switch(io.S_id_ex2ex.alusel) {
+    is(EXE_RES_LOGIC) {
+      switch(io.S_id_ex2ex.aluop) {
+        //  Logic //
+        is(EXE_AND_OP | EXE_ANDI_OP) {
+          res := data1 & data2
+        }
+        is(EXE_OR_OP | EXE_ORI_OP) {
+          res := data1 | data2
+        }
+        is(EXE_XOR_OP | EXE_XORI_OP) {
+          res := data1 ^ data2
+        }
+        is(EXE_NOR_OP) {
+          res := ~(data1 | data2)
+        }
+        is(EXE_LUI_OP) {
+          // TODO
+        }
+      }
     }
-    is(EXE_ADD_OP | EXE_ADDI_OP){
-      res := data1 + data2
+    is(EXE_RES_SHIFT) {
+      switch(io.S_id_ex2ex.aluop) {
+        is(EXE_SLL_OP | EXE_SLLV_OP) {
+          res := data2 |<< data1(4 downto 0)
+        }
+        is(EXE_SRL_OP | EXE_SRLV_OP) {
+          res := data2 |>> data1(4 downto 0)
+        }
+        is(EXE_SRA_OP | EXE_SRAV_OP) {
+          res := (data2.asSInt |>> data1(4 downto 0)).asUInt // notion //
+        }
+      }
     }
-    is(EXE_SRLV_OP){
-      res := data2 |<< data1(4 downto 0)
+    is(EXE_RES_MOVE) {
+      switch(io.S_id_ex2ex.aluop) {
+        // Move //
+        is(EXE_MOVN_OP) {
+          when(data2 =/= 0) {
+            res := data1
+          }.otherwise {
+
+          }
+        }
+        is(EXE_MOVZ_OP) {
+          when(data2 === 0) {
+            res := data1
+          }.otherwise {
+
+          }
+        }
+      }
     }
-    default{
+    is(EXE_RES_ARITHMETIC) {
+      switch(io.S_id_ex2ex.aluop) {
+        // Ari //
+        is(EXE_ADD_OP,EXE_ADDI_OP,EXE_ADDU_OP,EXE_ADDIU_OP) {
+          res := data1 + data2
+        }
+        is(EXE_SUB_OP,EXE_SUBU_OP) {
+          res := data1 + (~data2 + U"1")
+        }
+        is(EXE_SLT_OP,EXE_SLTI_OP) {
+          when(data1.asSInt < data2.asSInt) {
+            res := 1
+          } .otherwise{
+            res := 0
+          }
+        }
+        is(EXE_SLTU_OP,EXE_SLTIU_OP) {
+          when(data1 < data2) {
+            res := 1
+          } .otherwise{
+            res := 0
+          }
+        }
+        is(EXE_MUL_OP) {
+          res := (data1 * data2)(RegBus - 1 downto 0)
+        }
+        is(EXE_CLZ_OP) {
+          // TODO
+          res := ZeroWord
+        }
+        is(EXE_CLO_OP) {
+          // TODO
+          res := ZeroWord
+        }
+        // TODO : mul div multi-cycle
+      }
+    }
+    is(EXE_RES_JUMP_BRANCH){
+      // Jump & Branch //
+      //res_jumpbranch :=  io.S_branchLink_idEx2ex.link_addr  // TODO
       res := ZeroWord
     }
+    /*
+    default {
+      //res_logic := ZeroWord
+      //res_arith := ZeroWord
+      //res_shift := ZeroWord
+      //res_move := ZeroWord
+      //res_jumpbranch := ZeroWord
+      res := ZeroWord
+    }
+    */
   }
+
 
   when(io.rst===RstEnable){
     io.M_ex2ex_mem.wdata := ZeroWord
@@ -1143,6 +1909,30 @@ trait Interface_MS extends Global_parameter {
       out(aluop,mem_data,mem_addr)
     }
   }
+
+  // branch_interface case
+  case class branch_interface(config: CoreConfig) extends Bundle with IMasterSlave {
+    //  Address and control
+    val branch_flag = Bool()
+    val branch_targetaddr = UInt(InstAddrBus bits)
+
+    override def asMaster(): Unit = {
+      out(branch_flag,branch_targetaddr)
+    }
+  }
+
+  // delayslot_interface
+  case class delayslot_interface(config: CoreConfig) extends Bundle with IMasterSlave {
+    //  Address and control
+    val link_addr = UInt(InstAddrBus bits)
+    val next_inst_delayslot = Bool()
+    val is_delayslot = Bool()
+
+    override def asMaster(): Unit = {
+      out(link_addr,next_inst_delayslot,is_delayslot)
+    }
+  }
+
 }
 
 case class CoreConfig(){
@@ -1150,14 +1940,14 @@ case class CoreConfig(){
 }
 
 //Generate the MyTopLevel's Verilog
-object MIPS32 {
+object CPU {
   def main(args: Array[String]) {
     SpinalVerilog(new core)
   }
 }
 object CoreConfig extends SpinalConfig(defaultConfigForClockDomains = ClockDomainConfig(resetKind = SYNC))
 //Generate the MyTopLevel's Verilog using the above custom configuration.
-object MIPS32Verilog {
+object CPUVerilog {
   def main(args: Array[String]) {
     CoreConfig
       .generateVerilog(new core)  // module name

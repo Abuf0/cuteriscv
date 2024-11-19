@@ -249,11 +249,11 @@ object RISCV_ISA {
   */
 
   // SCB instruction status
-  def IDLE = B"0000"
-  def ISSUE = B"0001"
-  def READOP = B"0010"
-  def EXE = B"0100"
-  //def WB = B"1000"
-  def COMMIT = B"1000"
+  def IDLE = B"00000"
+  def ISSUE = B"00001"
+  def READOP = B"00010"
+  def EXE = B"00100"
+  def WB = B"01000"
+  def COMMIT = B"10000"
 
 }

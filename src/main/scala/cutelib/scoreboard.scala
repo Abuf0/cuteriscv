@@ -20,10 +20,12 @@ case class scoreboard () extends Component with Global_parameter with Interface_
     //val stall = out Bool()
     val scb_readop_ro = out Vec(Bool(),REG_NUM) // to regfile
     val scb_readop_wo = out Vec(Bool(),REG_NUM) // to regfile
-    val scb_readop_i = in Vec(UInt(RegDataBus bits),REG_NUM) // from regfile
+    val scb_readop_i = in Vec(UInt(RegDataBus bits),REG_NUM) // from regfile not used before commit
+    val scb_readop_csr_i =  in Vec(UInt(CSRDataBus bits),CSR_NUM) // from csr regfile not used before commit // todo: 接口太多了。需要改成reg接口
     val scb_readop_wb_i = in Vec(UInt(RegDataBus bits),REG_NUM) // from regfile wb
-    // todo :  加scoreboard和csr regfile bk模块的连接
-    val scb_readop_csr_wb_i =  in Vec(UInt(CSRDataBus bits),CSR_NUM) // from csr regfile wb
+    //val scb_readop_csr_wb_i =  in Vec(UInt(CSRDataBus bits),CSR_NUM) // from csr regfile wb // todo: 接口太多了。需要改成reg接口
+    val csr_wb_read_addr = out UInt(CSRAddrBus bits)
+    val csr_wb_read_data = in UInt(CSRDataBus bits)
     // todo ： 修改 csr_oprand_entry 的接口（无需rs2，新增csr），修改csr unit模块
     val alu_oprand_entry = master(operand_entry(CoreConfig()))  // with ALUU
     val mul1_oprand_entry = master(operand_entry(CoreConfig()))  // with MUL1
@@ -75,8 +77,9 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   val wptr_next = UInt(SCB_INSTR_WIDTH+1 bit)
   val rptr_next = UInt(SCB_INSTR_WIDTH+1 bit)
   val instr_tab_full = (wptr_next(SCB_INSTR_WIDTH) ^ rptr(SCB_INSTR_WIDTH)) && (wptr_next(SCB_INSTR_WIDTH-1 downto 0) === rptr(SCB_INSTR_WIDTH-1 downto 0))
+  val instr_tab_full_real = (wptr(SCB_INSTR_WIDTH) ^ rptr(SCB_INSTR_WIDTH)) && (wptr(SCB_INSTR_WIDTH-1 downto 0) === rptr(SCB_INSTR_WIDTH-1 downto 0))
   val instr_tab_empty = (rptr === wptr)
-  io.scb_full := instr_tab_full
+  io.scb_full := instr_tab_full_real
   val instr_end = Bool()
   //val instr_end_tab = Vec(Bool(),REG_NUM)
   //val instr_end_tab = Vec.fill(REG_NUM)(False)
@@ -87,8 +90,8 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   val ex_wb_entry_reg_wb_addr = Vec(Reg(UInt(RegAddrBus bits)) init(0) , 8)
   val ex_wb_entry_reg_wb_data = Vec(Reg(UInt(RegDataBus bits)) init(0) , 8)
   val ex_wb_entry_reg_wb_en = Vec(Reg(Bool()) init(False) , 8)
-  val ex_wb_entry_csr_wb_addr = Vec(Reg(UInt(RegAddrBus bits)) init(0) , 8)
-  val ex_wb_entry_csr_wb_data = Vec(Reg(UInt(RegDataBus bits)) init(0) , 8)
+  val ex_wb_entry_csr_wb_addr = Vec(Reg(UInt(CSRAddrBus bits)) init(0) , 8)
+  val ex_wb_entry_csr_wb_data = Vec(Reg(UInt(CSRDataBus bits)) init(0) , 8)
   val ex_wb_entry_csr_wb_en = Vec(Reg(Bool()) init(False) , 8)
   val ex_wb_entry_dcache_wb_en = Vec(Reg(Bool()) init(False) , 8)
   val ex_wb_entry_dcache_wb_addr = Vec(Reg(UInt(DataAddrBus bits)) init(0) , 8)
@@ -297,8 +300,8 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   val wb_commit_entry_reg_wb_addr = Reg(UInt(RegAddrBus bits)) init(0)
   val wb_commit_entry_reg_wb_data = Reg(UInt(RegDataBus bits)) init(0)
   val wb_commit_entry_reg_wb_en = Reg(Bool()) init(False)
-  val wb_commit_entry_csr_wb_addr = Reg(UInt(RegAddrBus bits)) init(0)
-  val wb_commit_entry_csr_wb_data = Reg(UInt(RegDataBus bits)) init(0)
+  val wb_commit_entry_csr_wb_addr = Reg(UInt(CSRAddrBus bits)) init(0)
+  val wb_commit_entry_csr_wb_data = Reg(UInt(CSRDataBus bits)) init(0)
   val wb_commit_entry_csr_wb_en = Reg(Bool()) init(False)
   val wb_commit_entry_dcache_wb_en = Reg(Bool()) init(False)
   val wb_commit_entry_dcache_wb_addr = Reg(UInt(DataAddrBus bits)) init(0)
@@ -375,12 +378,15 @@ case class scoreboard () extends Component with Global_parameter with Interface_
 
   //io.scb_branch_predict_entry.setAsReg()
 
-
-  when(~instr_tab_full){
+  when(io.flush){
+    wptr := rptr + 1
+  } .elsewhen(~instr_tab_full_real){
     wptr := wptr_next
   } .otherwise{}
 
-  when(~instr_tab_empty){
+  when(io.flush) {
+    rptr := rptr
+  } .elsewhen(~instr_tab_empty){
     rptr := rptr_next
   } .otherwise{}
 
@@ -397,20 +403,33 @@ case class scoreboard () extends Component with Global_parameter with Interface_
 
   val (flush_ptr_flag, flush_ptr): (Bool, UInt) = PRE_TAB.sFindFirst(_===True) // get the index of the first element lower than 10
   val (flush_ptr_mask_flag, flush_mask_ptr): (Bool, UInt) = PRE_TAB_MASK.sFindFirst(_===True) // get the index of the first element lower than 10
+  val flush_mask_wptr_next = U(rptr(SCB_INSTR_WIDTH)) @@ flush_mask_ptr +1
+  val flush_wptr_next = U(wptr(SCB_INSTR_WIDTH)) @@ flush_ptr +1
 
+  /*
   when(io.flush === True){
     when(flush_ptr_mask_flag) {
-      wptr_next := U(rptr(SCB_INSTR_WIDTH)) @@ flush_mask_ptr
+      wptr_next := flush_mask_wptr_next
     } .otherwise{
-      wptr_next := U(wptr(SCB_INSTR_WIDTH)) @@ flush_ptr
+      wptr_next := flush_wptr_next
     }
+    wptr_next := wptr + 1
   } .elsewhen(io.issue_dec_entry.dec_valid){
     wptr_next := wptr + 1
   }. otherwise{
     wptr_next := wptr
   }
+  */
+
+  when(io.issue_dec_entry.dec_valid){
+    wptr_next := wptr + 1
+  }. otherwise{
+    wptr_next := wptr
+  }
+
 
   //instr_end := instr_end_tab.orR
+  /*
   when(io.flush === True){
     //rptr_next := U(rptr(SCB_INSTR_WIDTH)) @@ flush_ptr
     rptr_next := rptr
@@ -419,10 +438,17 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   } .otherwise{
     rptr_next := rptr
   }
+  */
+
+  when(instr_end_tab(rptr(SCB_INSTR_WIDTH - 1 downto 0)) === True){  // 当rptr处指令commit结束后，才会把该条指令丢弃, rptr类似sp的存在
+    rptr_next := rptr + 1
+  } .otherwise{
+    rptr_next := rptr
+  }
 
   val windex = wptr(SCB_INSTR_WIDTH - 1 downto 0)
 
-  when(io.issue_dec_entry.dec_valid && ~instr_tab_full){
+  when(io.issue_dec_entry.dec_valid && ~instr_tab_full_real){
     INSTR_TAB(windex) := io.issue_dec_entry.instr
     ALU_SEL_TAB(windex) := B(io.issue_dec_entry.alu_sel)
     OP_TYPE_TAB(windex) := B(io.issue_dec_entry.op_type)
@@ -535,6 +561,8 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   io.csr_oprand_entry.dec_valid := False
   io.csr_oprand_entry.trans_id := U(SCB_IU_DEEPTH)
   io.csr_oprand_entry.pc := 0
+  // avoid latch
+  io.csr_wb_read_addr := 0
 
   io.scb_branch_predict_entry.pc := 0
   io.scb_branch_predict_entry.branch_target := 0
@@ -569,7 +597,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
     val rd_addr = RD_TAB(index)(RegAddrBus+1 downto 2)
     val rd_rden = RD_TAB(index)(1)
     val rd_wten = RD_TAB(index)(0)
-    val csr_addr = CSR_TAB(index)(CSRValidAddrBus+1 downto 2)
+    val csr_addr = CSR_TAB(index)(CSRAddrBus+1 downto 2)
     val csr_rden = CSR_TAB(index)(1)
     val csr_wten = CSR_TAB(index)(0)
     val imm_value = IMM_TAB(index)
@@ -666,12 +694,14 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           }
           when(csr_rden) {
             CSR_ST_R(csr_addr) := csr_rden
+            io.csr_wb_read_addr := csr_addr
           }
           //REG_ST(rd_addr) := B"0"##rd_wten
         }
       }
       is(READOP) {
-        when(io.flush === True && predict_flag === True) {
+        //when(io.flush === True && predict_flag === True) {  // todo : 现在统一在commit时处理flush，因此保证了该条指令是oldest，不需要predict_flag了
+        when(io.flush === True) {
           SCB_IU_TAB(i) := IDLE
           //instr_end_tab(i) := True
           FU_ST(U(alu_sel)) := False
@@ -690,7 +720,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           val csr_data_real = UInt(CSRDataBus bits)
           rs1_data_real := io.scb_readop_wb_i(rs1_addr)
           rs2_data_real := io.scb_readop_wb_i(rs2_addr)
-          csr_data_real := io.scb_readop_csr_wb_i(csr_addr)
+          csr_data_real := io.csr_wb_read_data
           switch(alu_sel) {
             is(B(ALU_UNIT_SEL.ALUU)) {
               io.alu_oprand_entry.rs1_data := rs1_data_real
@@ -790,7 +820,8 @@ case class scoreboard () extends Component with Global_parameter with Interface_
       }
       is(EXE) {
         //when (FU_ST(U(alu_sel)) === True) { // todo
-        when (io.flush === True && predict_flag === True){
+        //when (io.flush === True && predict_flag === True){  // todo : 现在统一在commit时处理flush，因此保证了该条指令是oldest，不需要predict_flag了
+        when(io.flush === True) {
           SCB_IU_TAB(i) := IDLE
           //instr_end_tab(i) := True
           FU_ST(U(alu_sel)) := False
@@ -1004,7 +1035,8 @@ case class scoreboard () extends Component with Global_parameter with Interface_
         }
       }
       is(WB){
-        when (io.flush === True && predict_flag === True){
+        //when (io.flush === True && predict_flag === True){  // todo : 现在统一在commit时处理flush，因此保证了该条指令是oldest，不需要predict_flag了
+        when (io.flush === True){
           SCB_IU_TAB(i) := IDLE
           //instr_end_tab(i) := True
           FU_ST(U(alu_sel)) := False

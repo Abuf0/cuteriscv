@@ -27,8 +27,8 @@ case class wb() extends Component with Global_parameter with Interface_MS{
   val REG_WADDR_TAB = Vec(Reg(UInt(RegAddrBus bits)) init(0), SCB_INSTR_DEEPTH)
   val REG_WDATA_TAB = Vec(Reg(UInt(RegDataBus bits)) init(0), SCB_INSTR_DEEPTH)
   val CSR_WEN_TAB = Vec(Reg(Bool()) init(False), SCB_INSTR_DEEPTH)
-  val CSR_WADDR_TAB = Vec(Reg(UInt(RegAddrBus bits)) init(0), SCB_INSTR_DEEPTH)
-  val CSR_WDATA_TAB = Vec(Reg(UInt(RegDataBus bits)) init(0), SCB_INSTR_DEEPTH)
+  val CSR_WADDR_TAB = Vec(Reg(UInt(CSRAddrBus bits)) init(0), SCB_INSTR_DEEPTH)
+  val CSR_WDATA_TAB = Vec(Reg(UInt(CSRDataBus bits)) init(0), SCB_INSTR_DEEPTH)
   val DCACHE_REN_TAB = Vec(Reg(Bool()) init(False), SCB_INSTR_DEEPTH)
   val DCACHE_RADDR_TAB = Vec(Reg(UInt(DataAddrBus bits)) init(0), SCB_INSTR_DEEPTH)
   val DCACHE_WEN_TAB = Vec(Reg(Bool()) init(False), SCB_INSTR_DEEPTH)
@@ -335,8 +335,8 @@ case class wb() extends Component with Global_parameter with Interface_MS{
   val wb_scb_entry_reg_wb_addr = UInt(RegAddrBus bits)
   val wb_scb_entry_reg_wb_data = UInt(RegDataBus bits)
   val wb_scb_entry_reg_wb_en = Bool()
-  val wb_scb_entry_csr_wb_addr = UInt(RegAddrBus bits)
-  val wb_scb_entry_csr_wb_data = UInt(RegDataBus bits)
+  val wb_scb_entry_csr_wb_addr = UInt(CSRAddrBus bits)
+  val wb_scb_entry_csr_wb_data = UInt(CSRDataBus bits)
   val wb_scb_entry_csr_wb_en   = Bool()
   val wb_scb_entry_dcache_wb_en = Bool()
   val wb_scb_entry_dcache_wb_addr = UInt(DataAddrBus bits)
@@ -354,7 +354,7 @@ case class wb() extends Component with Global_parameter with Interface_MS{
   val wb_scb_entry_target_pc = UInt(InstAddrBus bits)
 
   val hindex = io.head_ptr
-  when(hindex === index_alu){
+  when(U"0"@@hindex === io.alu_ex_wb_entry.trans_id){
     wb_scb_entry_instr          := io.alu_ex_wb_entry.instr
     wb_scb_entry_pc             := io.alu_ex_wb_entry.pc
     wb_scb_entry_reg_wb_en      := io.alu_ex_wb_entry.reg_wb_en
@@ -374,7 +374,7 @@ case class wb() extends Component with Global_parameter with Interface_MS{
     wb_scb_entry_csr_wb_addr    := io.alu_ex_wb_entry.csr_wb_addr
     wb_scb_entry_csr_wb_data    := io.alu_ex_wb_entry.csr_wb_data
     wb_scb_entry_csr_wb_en      := io.alu_ex_wb_entry.csr_wb_en
-  } .elsewhen(hindex === index_mul1){
+  } .elsewhen(U"0"@@hindex === io.mul1_ex_wb_entry.trans_id){
     wb_scb_entry_instr          := io.mul1_ex_wb_entry.instr
     wb_scb_entry_pc             := io.mul1_ex_wb_entry.pc
     wb_scb_entry_reg_wb_en      := io.mul1_ex_wb_entry.reg_wb_en
@@ -394,7 +394,7 @@ case class wb() extends Component with Global_parameter with Interface_MS{
     wb_scb_entry_csr_wb_addr    := io.mul1_ex_wb_entry.csr_wb_addr
     wb_scb_entry_csr_wb_data    := io.mul1_ex_wb_entry.csr_wb_data
     wb_scb_entry_csr_wb_en      := io.mul1_ex_wb_entry.csr_wb_en
-  } .elsewhen(hindex === index_mul2){
+  } .elsewhen(U"0"@@hindex === io.mul2_ex_wb_entry.trans_id){
     wb_scb_entry_instr          := io.mul2_ex_wb_entry.instr
     wb_scb_entry_pc             := io.mul2_ex_wb_entry.pc
     wb_scb_entry_reg_wb_en      := io.mul2_ex_wb_entry.reg_wb_en
@@ -414,7 +414,7 @@ case class wb() extends Component with Global_parameter with Interface_MS{
     wb_scb_entry_csr_wb_addr    := io.mul2_ex_wb_entry.csr_wb_addr
     wb_scb_entry_csr_wb_data    := io.mul2_ex_wb_entry.csr_wb_data
     wb_scb_entry_csr_wb_en      := io.mul2_ex_wb_entry.csr_wb_en
-  } .elsewhen(hindex === index_divu){
+  } .elsewhen(U"0"@@hindex === io.divu_ex_wb_entry.trans_id){
     wb_scb_entry_instr          := io.divu_ex_wb_entry.instr
     wb_scb_entry_pc             := io.divu_ex_wb_entry.pc
     wb_scb_entry_reg_wb_en      := io.divu_ex_wb_entry.reg_wb_en
@@ -434,7 +434,7 @@ case class wb() extends Component with Global_parameter with Interface_MS{
     wb_scb_entry_csr_wb_addr    := io.divu_ex_wb_entry.csr_wb_addr
     wb_scb_entry_csr_wb_data    := io.divu_ex_wb_entry.csr_wb_data
     wb_scb_entry_csr_wb_en      := io.divu_ex_wb_entry.csr_wb_en
-  } .elsewhen(hindex === index_bju){
+  } .elsewhen(U"0"@@hindex === io.bju_ex_wb_entry.trans_id){
     wb_scb_entry_instr          := io.bju_ex_wb_entry.instr
     wb_scb_entry_pc             := io.bju_ex_wb_entry.pc
     wb_scb_entry_reg_wb_en      := io.bju_ex_wb_entry.reg_wb_en
@@ -454,7 +454,7 @@ case class wb() extends Component with Global_parameter with Interface_MS{
     wb_scb_entry_csr_wb_addr    := io.bju_ex_wb_entry.csr_wb_addr
     wb_scb_entry_csr_wb_data    := io.bju_ex_wb_entry.csr_wb_data
     wb_scb_entry_csr_wb_en      := io.bju_ex_wb_entry.csr_wb_en
-  } .elsewhen(hindex === index_lsu){
+  } .elsewhen(U"0"@@hindex === io.lsu_ex_wb_entry.trans_id){
     wb_scb_entry_instr          := io.lsu_ex_wb_entry.instr
     wb_scb_entry_pc             := io.lsu_ex_wb_entry.pc
     wb_scb_entry_reg_wb_en      := io.lsu_ex_wb_entry.reg_wb_en
@@ -474,7 +474,7 @@ case class wb() extends Component with Global_parameter with Interface_MS{
     wb_scb_entry_csr_wb_addr    := io.lsu_ex_wb_entry.csr_wb_addr
     wb_scb_entry_csr_wb_data    := io.lsu_ex_wb_entry.csr_wb_data
     wb_scb_entry_csr_wb_en      := io.lsu_ex_wb_entry.csr_wb_en
-  } .elsewhen(hindex === index_csr){
+  } .elsewhen(U"0"@@hindex === io.csr_ex_wb_entry.trans_id){
     wb_scb_entry_instr          := io.csr_ex_wb_entry.instr
     wb_scb_entry_pc             := io.csr_ex_wb_entry.pc
     wb_scb_entry_reg_wb_en      := io.csr_ex_wb_entry.reg_wb_en
@@ -494,7 +494,7 @@ case class wb() extends Component with Global_parameter with Interface_MS{
     wb_scb_entry_csr_wb_addr    := io.csr_ex_wb_entry.csr_wb_addr
     wb_scb_entry_csr_wb_data    := io.csr_ex_wb_entry.csr_wb_data
     wb_scb_entry_csr_wb_en      := io.csr_ex_wb_entry.csr_wb_en
-  } .elsewhen(hindex === index_nopu){
+  } .elsewhen(U"0"@@hindex === io.nopu_ex_wb_entry.trans_id){
     wb_scb_entry_instr          := io.nopu_ex_wb_entry.instr
     wb_scb_entry_pc             := io.nopu_ex_wb_entry.pc
     wb_scb_entry_reg_wb_en      := io.nopu_ex_wb_entry.reg_wb_en

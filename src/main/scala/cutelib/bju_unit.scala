@@ -27,6 +27,7 @@ case class bju_unit() extends Component with Global_parameter with Interface_MS 
   val branch_taken = Reg(Bool()) init(False)
   val bju_trans_id = Reg(UInt(SCB_ID_WIDTH bits)) init(SCB_IU_DEEPTH)
   val bju_pc = Reg(UInt(InstAddrBus bits)) init(0)
+  val bju_instr = Reg(UInt(InstBus bits)) init(0)
   /*
   val bju_mis_branch_cor = Reg(Bool()) init(False)
   val bju_mis_call_cor = Reg(Bool()) init(False)
@@ -43,6 +44,7 @@ case class bju_unit() extends Component with Global_parameter with Interface_MS 
   when(io.ex_operand_entry.dec_valid){
     bju_trans_id := io.ex_operand_entry.trans_id
     bju_pc := io.ex_operand_entry.pc
+    bju_instr := io.ex_operand_entry.instr
   } . otherwise{  }
 
 
@@ -148,6 +150,7 @@ case class bju_unit() extends Component with Global_parameter with Interface_MS 
   io.bju_ex_entry.result := bju_result
   io.bju_ex_entry.trans_id := bju_trans_id
   io.bju_ex_entry.pc := bju_pc
+  io.bju_ex_entry.instr := bju_instr
 
   io.bju_branch_predict.setAsReg()
   io.bju_branch_predict.branch_valid := io.ex_branch_predict.branch_valid

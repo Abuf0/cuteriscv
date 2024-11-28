@@ -7,13 +7,14 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
   val io = new Bundle {
     val clk = in Bool()
     val rstn = in Bool()
-    val mtvec = in UInt (InstAddrBus bits) // CSR设定初始pc地址 <--csr regfile
+    val trap_entry = in UInt (InstAddrBus bits) // CSR设定初始pc地址 <--csr regfile
     val csr_epc1 = in UInt (InstAddrBus bits) // CSR中exception target地址？？ <--csr regfile
     val csr_epc2 = in UInt (InstAddrBus bits) // CSR中exception target地址？？ <--csr regfile
     val epc = in UInt (InstAddrBus bits) // commit时exception target地址 <--commit
     //val flush = out Bool()
     val flush = in Bool()
     val flush_mis_predict = in Bool()
+    val flush_except = in Bool()
     val flush_mis_predict_target_pc = in UInt(InstAddrBus bits)
     val instr_realign = slave(instr_entry(CoreConfig())) // ICache instr-->realign-->
     val pc_valid = out Bool()
@@ -31,7 +32,7 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
     val icache_rdy = in Bool()  // from icache
     //val mispredict_entry = master(branch_mispredict_entry(CoreConfig())) // ex stage to ras
   }
-  val pc_r = Reg(UInt(InstAddrBus bits)) init (io.mtvec)
+  val pc_r = Reg(UInt(InstAddrBus bits)) init (io.trap_entry)
 
   val is_jump = Bool()
   val jump_target = UInt(InstAddrBus bits)
@@ -66,11 +67,11 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
 
   when(io.flush === True) { // todo wrong
     //pc_r := io.ex_branch_predict.target_pc
-    when(io.flush_mis_predict===True && io.flush===False){
-      pc_r := io.mtvec
-    } .otherwise{
+    when(io.flush_except === True){
+      pc_r := io.trap_entry
+    } .elsewhen(io.flush_mis_predict===True){
       pc_r := io.flush_mis_predict_target_pc
-    }
+    } .otherwise{ } // todo
   }.elsewhen(io.icache_rdy === True) { // 包含了stall_push
     when(is_jump === True) {
       pc_r := jump_target
@@ -98,14 +99,14 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
       jump_target := pc_r + U(InstBus-12 bits,default -> io.instr_realign.inst(31)) @@ io.instr_realign.inst(31 downto 20) // 符号位扩展
       is_jump := True
     } .otherwise{
-      jump_target := io.mtvec
+      jump_target := io.trap_entry
     }
   } .otherwise {
     io.if_branch_predict.is_branch := False
     io.if_branch_predict.is_call := False
     io.if_branch_predict.is_ret := False
     is_jump := False
-    jump_target := io.mtvec
+    jump_target := io.trap_entry
   }
 
   io.pc := pc_r

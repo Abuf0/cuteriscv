@@ -33,7 +33,7 @@ case class decorder() extends Component with Global_parameter with Interface_MS 
   dec_rs1_entry.reg_addr := io.id_instr_entry.inst(19 downto 15)
   dec_rs2_entry.reg_addr := io.id_instr_entry.inst(24 downto 20)
   dec_rd_entry.reg_addr := io.id_instr_entry.inst(11 downto 7)
-  dec_csr_entry.reg_addr := io.id_instr_entry.inst(31 downto 20)
+  dec_csr_entry.reg_addr := io.id_instr_entry.inst(31 downto 20).resized
   dec_rs1_entry.reg_rden := False
   dec_rs1_entry.reg_wten := False
   dec_rs2_entry.reg_rden := False
@@ -193,7 +193,7 @@ case class decorder() extends Component with Global_parameter with Interface_MS 
         dec_rs1_entry.reg_addr := io.id_instr_entry.inst(19 downto 15)
         dec_rs2_entry.reg_addr := io.id_instr_entry.inst(24 downto 20)
         dec_rd_entry.reg_addr := io.id_instr_entry.inst(11 downto 7)
-        dec_csr_entry.reg_addr := io.id_instr_entry.inst(31 downto 20)
+        dec_csr_entry.reg_addr := io.id_instr_entry.inst(31 downto 20).resized
         dec_rs1_entry.reg_rden := False
         dec_rs1_entry.reg_wten := False
         dec_rs2_entry.reg_rden := False
@@ -218,7 +218,8 @@ case class decorder() extends Component with Global_parameter with Interface_MS 
     dec_rs1_entry.reg_addr := io.id_instr_entry.inst(19 downto 15)
     dec_rs2_entry.reg_addr := io.id_instr_entry.inst(24 downto 20)
     dec_rd_entry.reg_addr := io.id_instr_entry.inst(11 downto 7)
-    dec_csr_entry.reg_addr := io.id_instr_entry.inst(31 downto 20)
+    //dec_csr_entry.reg_addr := io.id_instr_entry.inst(31 downto 20)
+    dec_csr_entry.reg_addr := io.id_instr_entry.inst(31 downto 20).resized
     dec_rs1_entry.reg_rden := False
     dec_rs1_entry.reg_wten := False
     dec_rs2_entry.reg_rden := False

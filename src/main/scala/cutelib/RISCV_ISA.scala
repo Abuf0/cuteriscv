@@ -186,6 +186,7 @@ object RISCV_ISA {
     def MEPC      = 0x341 // MRW Machine exception program counter.
     def MCAUSE    = 0x342 // MRW Machine trap cause.
     def MBADADDR  = 0x343 // MRW Machine bad address.
+    def MTVAL     = 0x343 // the same as MBADADDR
     def MIP       = 0x344 // MRW Machine interrupt pending.
     def MBASE     = 0x380 // MRW Base register.
     def MBOUND    = 0x381 // MRW Bound register.
@@ -241,6 +242,12 @@ object RISCV_ISA {
     val OP_LOGIC, OP_ARITHMETIC, OP_SHIFT, OP_MOVE, OP_MUL, OP_JUMP_BRANCH, OP_LOAD_STORE, OP_NOP = newElement()
   }
 
+  // Exception cause List // todo: 包含所有异常【包含中断】，有待后续完善
+  val exception_encoding = SpinalEnumEncoding("dynamicEncoding", _ + 1)
+  object EXC_CAUSE extends SpinalEnum(exception_encoding) {
+    val ILEGAL_CODING, ILEGAL_PC, ILEGAL_ACCESS, NON_ALIGNED, EBREAK,TIMER_INT, SOFT_INT, UART_INT  = newElement()
+  }
+
   /*
   // dec option
   object EXE_OP extends SpinalEnum {
@@ -255,5 +262,6 @@ object RISCV_ISA {
   def EXE = B"00100"
   def WB = B"01000"
   def COMMIT = B"10000"
+
 
 }

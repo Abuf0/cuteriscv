@@ -3,6 +3,7 @@ import spinal.core._
 import spinal.lib._   // IMasterSlave
 import RISCV_ISA._
 
+
 case class pc_gen() extends Component with Global_parameter with Interface_MS {
   val io = new Bundle {
     val clk = in Bool()

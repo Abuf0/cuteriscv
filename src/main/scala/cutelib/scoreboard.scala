@@ -35,6 +35,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
     val bju_mis_predict_entry = slave(branch_mispredict_entry(CoreConfig()))
     val lsu_oprand_entry = master(operand_entry(CoreConfig()))  // with LSU
     val csr_oprand_entry = master(operand_entry(CoreConfig()))  // with CSR
+    val nopu_oprand_entry = master(operand_entry(CoreConfig()))  // with NOP
     val alu_ex_entry = slave(alu_res_entry(CoreConfig())) // from ex stage
     val mul1_ex_entry = slave(mul_res_entry(CoreConfig())) // from ex stage
     val mul2_ex_entry = slave(mul_res_entry(CoreConfig())) // from ex stage
@@ -42,6 +43,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
     val bju_ex_entry = slave(bju_res_entry(CoreConfig())) // from ex stage
     val lsu_ex_entry = slave(lsu_res_entry(CoreConfig())) // from ex stage
     val csr_ex_entry = slave(csr_res_entry(CoreConfig())) // from ex stage
+    val nopu_ex_entry = slave(nop_res_entry(CoreConfig())) // from ex stage
     val alu_ex_wb_entry = master(commit_entry(CoreConfig())) // to wb stage
     val mul1_ex_wb_entry = master(commit_entry(CoreConfig()))
     val mul2_ex_wb_entry = master(commit_entry(CoreConfig()))
@@ -319,6 +321,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   val wb_commit_entry_call_cor = Reg(Bool()) init(False)
   val wb_commit_entry_ret_cor = Reg(Bool()) init(False)
   val wb_commit_entry_target_pc = Reg(UInt(InstAddrBus bits)) init(0)
+  val wb_commit_entry_dec_valid = Reg(Bool()) init(False)
 
   io.wb_commit_entry.reg_wb_addr := wb_commit_entry_reg_wb_addr
   io.wb_commit_entry.reg_wb_data := wb_commit_entry_reg_wb_data
@@ -337,6 +340,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   wb_commit_entry_dcache_rd_data := io.wb_commit_entry.dcache_rd_data
   io.wb_commit_entry.dcache_rd_en := wb_commit_entry_dcache_rd_en
   io.wb_commit_entry.pc := wb_commit_entry_pc
+  io.wb_commit_entry.dec_valid := wb_commit_entry_dec_valid
 
   io.wb_commit_entry.branch_cor := wb_commit_entry_branch_cor
   io.wb_commit_entry.call_cor := wb_commit_entry_call_cor
@@ -551,6 +555,17 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   io.bju_oprand_entry.trans_id := U(SCB_IU_DEEPTH)
   io.bju_oprand_entry.pc := 0
 
+  io.nopu_oprand_entry.rs1_data := 0
+  io.nopu_oprand_entry.rs2_data := 0
+  io.nopu_oprand_entry.imm := 0
+  io.nopu_oprand_entry.rd_addr := 0
+  io.nopu_oprand_entry.rd_wten := False
+  io.nopu_oprand_entry.instr := 0
+  io.nopu_oprand_entry.op_type := OP_TYPE.OP_NOP
+  io.nopu_oprand_entry.dec_valid := False
+  io.nopu_oprand_entry.trans_id := U(SCB_IU_DEEPTH)
+  io.nopu_oprand_entry.pc := 0
+
   io.csr_oprand_entry.rs1_data := 0
   io.csr_oprand_entry.rs2_data := 0
   io.csr_oprand_entry.imm := 0
@@ -659,12 +674,16 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           when(rd_wten){
             REG_ST_W(rd_addr) := True
             REG_ST_NW(rd_addr) := True
-          }
+          } .otherwise{ }
           when(csr_wten){
             CSR_ST_W(csr_addr) := True
             CSR_ST_NW(csr_addr) := True
+          } .otherwise{ }
+          when(alu_sel=/=B(ALU_UNIT_SEL.NOPU)) {
+            FU_ST(U(alu_sel)) := True
+          } .otherwise{
+            FU_ST(U(alu_sel)) := False  // 保证了无效指令不会阻塞
           }
-          FU_ST(U(alu_sel)) := True
         } .otherwise {
           SCB_IU_TAB(i) := IDLE
         }
@@ -814,6 +833,13 @@ case class scoreboard () extends Component with Global_parameter with Interface_
               io.csr_oprand_entry.dec_valid := True
               io.csr_oprand_entry.trans_id := trans_id
               io.csr_oprand_entry.pc := pc
+            }
+            is(B(ALU_UNIT_SEL.NOPU))  {
+              io.nopu_oprand_entry.instr := instr
+              io.nopu_oprand_entry.op_type.assignFromBits(op_type)
+              io.nopu_oprand_entry.dec_valid := False
+              io.nopu_oprand_entry.trans_id := trans_id
+              io.nopu_oprand_entry.pc := pc
             }
           }
         }
@@ -1007,6 +1033,29 @@ case class scoreboard () extends Component with Global_parameter with Interface_
               ex_wb_entry_csr_wb_addr(U(alu_sel)) := csr_addr
               ex_wb_entry_csr_wb_data(U(alu_sel)) := io.csr_ex_entry.result_csr
             }
+            is(B(ALU_UNIT_SEL.NOPU)){
+              ex_wb_entry_instr(U(alu_sel)) := io.nopu_ex_entry.instr
+              ex_wb_entry_pc(U(alu_sel)) := io.nopu_ex_entry.pc
+              ex_wb_entry_reg_wb_en(U(alu_sel)) := False
+              ex_wb_entry_reg_wb_addr(U(alu_sel)) := U"0".resized
+              ex_wb_entry_reg_wb_data(U(alu_sel)) := U"0".resized
+              ex_wb_entry_trans_id(U(alu_sel)) := io.nopu_ex_entry.trans_id
+              //ex_wb_entry_alusel(U(alu_sel)) := B(ALU_UNIT_SEL.CSR)
+              ex_wb_entry_dcache_wb_en(U(alu_sel)) := False
+              ex_wb_entry_dcache_wb_addr(U(alu_sel)) := U"0".resized
+              ex_wb_entry_dcache_wb_data(U(alu_sel)) := U"0".resized
+              ex_wb_entry_dcache_rd_en(U(alu_sel)) := False
+              ex_wb_entry_dcache_rd_addr(U(alu_sel)) := U"0".resized
+              ex_wb_entry_dcache_rd_data(U(alu_sel)) := U"0".resized
+              ex_wb_entry_dcache_wb_sel(U(alu_sel)) := B"1111"
+              ex_wb_entry_branch_cor(U(alu_sel)) := False
+              ex_wb_entry_call_cor(U(alu_sel)) := False
+              ex_wb_entry_ret_cor(U(alu_sel)) := False
+              ex_wb_entry_target_pc(U(alu_sel)) := U"0".resized
+              ex_wb_entry_csr_wb_en(U(alu_sel)) := False
+              ex_wb_entry_csr_wb_addr(U(alu_sel)) := U"0".resized
+              ex_wb_entry_csr_wb_data(U(alu_sel)) := U"0".resized
+            }
             default{
               ex_wb_entry_instr(U(alu_sel)) := U"0".resized
               ex_wb_entry_pc(U(alu_sel)) := U"0".resized
@@ -1059,6 +1108,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           wb_commit_entry_reg_wb_addr := io.wb_scb_entry.reg_wb_addr
           wb_commit_entry_reg_wb_data := io.wb_scb_entry.reg_wb_data
           wb_commit_entry_trans_id := io.wb_scb_entry.trans_id
+          wb_commit_entry_dec_valid := io.wb_scb_entry.dec_valid
           // todo with store
           wb_commit_entry_dcache_wb_en := io.wb_scb_entry.dcache_wb_en
           wb_commit_entry_dcache_wb_addr := io.wb_scb_entry.dcache_wb_addr

@@ -186,8 +186,15 @@ case class decorder() extends Component with Global_parameter with Interface_MS 
         dec_valid := True
       }
 
+      is(MRET,SRET){  // 退出异常
+        dec_alu_sel := ALU_UNIT_SEL.NOPU
+        dec_op_type := OP_TYPE.OP_NOP
+        dec_valid := True
+      }
 
-      default{
+      // NOP实际上汇编编译成ADDI x0,x0,0 //
+
+      default{  // 无论是NOP或者非法指令，都顺序往NOPU发，期间不会有阻塞，FU_ST(NOPU)不会拉高
         dec_alu_sel := ALU_UNIT_SEL.NOPU
         dec_op_type := OP_TYPE.OP_NOP
         dec_rs1_entry.reg_addr := io.id_instr_entry.inst(19 downto 15)
@@ -205,7 +212,7 @@ case class decorder() extends Component with Global_parameter with Interface_MS 
         dec_imm := 0
         dec_valid := False
         predict_flag := False
-        assert(
+        assert( //需要被替代为ilegal instruction 异常 todo
           assertion = True,
           message   = "Unsupported instruction !!!",
           severity  = ERROR

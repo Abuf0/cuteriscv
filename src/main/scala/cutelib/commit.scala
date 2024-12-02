@@ -39,6 +39,7 @@ case class commit() extends Component with Global_parameter with Interface_MS{
   io.exc_commit_entry.dcache_wb_addr := io.ex_commit_entry.dcache_wb_addr
   io.exc_commit_entry.csr_wb_en := io.ex_commit_entry.csr_wb_en
   io.exc_commit_entry.csr_wb_addr := io.ex_commit_entry.csr_wb_addr
+  io.exc_commit_entry.dec_valid := io.ex_commit_entry.dec_valid
   // branch predict flush //
   //val flush_mis_predict = io.bju_mis_predict.branch_cor || io.bju_mis_predict.ret_cor || io.bju_mis_predict.call_cor
   val flush_mis_predict = io.ex_commit_entry.branch_cor || io.ex_commit_entry.ret_cor || io.ex_commit_entry.call_cor

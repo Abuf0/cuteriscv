@@ -12,6 +12,7 @@ import alu_unit._
 import bju_unit._
 import lsu_unit._
 import csr_unit._
+import nop_unit._
 
 
 /*
@@ -2041,10 +2042,11 @@ class csr_regfile extends Component with Global_parameter with Interface_MS {
     val clk = in Bool()
     val rstn = in Bool()
     val write_interface = slave(wcsr_interface(CoreConfig())) // from commit stage
-    val read_addr = in UInt(CSRAddrBus bits)
-    val read_data = out UInt(CSRDataBus bits)
+    val read_addr = in UInt(CSRAddrBus bits)  // from scb,与csr读指令相关
+    val read_data = out UInt(CSRDataBus bits) // to scb,与csr读指令相关
     //val readop_entry = out Vec(UInt(CSRDataBus bits),CSR_NUM) // to scb
     val csr_exc_entry = slave(csr_except_entry(CoreConfig()))  // 发生异常时，同时更新异常相关的特殊csr寄存器
+    val csr_exc_readout = master(csr_except_entry(CoreConfig()))  // handle异常时，需要读出异常相关特殊csr寄存器
   }
   // todo
   val CSR_FILE = Vec(Reg(UInt(CSRDataBus bits)) init(0),CSR_NUM)
@@ -2055,11 +2057,16 @@ class csr_regfile extends Component with Global_parameter with Interface_MS {
   } .otherwise{ }
   when(io.csr_exc_entry.csr_except_wen === True){
     // todo 恢复
-    //CSR_FILE(CSR.MCAUSE)  := io.csr_exc_entry.mcause
-    //CSR_FILE(CSR.MEPC)    := io.csr_exc_entry.mepc
-    //CSR_FILE(CSR.MTVAL)   := io.csr_exc_entry.mtval   // 老版本叫MBADADDR，新版本叫MTVAL，S和U也一样，找def的时候需要注意 //
-    //CSR_FILE(CSR.MSTATUS) := io.csr_exc_entry.mstatus
+    CSR_FILE(CSR.MCAUSE)  := io.csr_exc_entry.mcause
+    CSR_FILE(CSR.MEPC)    := io.csr_exc_entry.mepc
+    CSR_FILE(CSR.MTVAL)   := io.csr_exc_entry.mtval   // 老版本叫MBADADDR，新版本叫MTVAL，S和U也一样，找def的时候需要注意 //
+    CSR_FILE(CSR.MSTATUS) := io.csr_exc_entry.mstatus
   } .otherwise{ }
+  io.csr_exc_readout.mcause := CSR_FILE(CSR.MCAUSE)
+  io.csr_exc_readout.mepc := CSR_FILE(CSR.MEPC)
+  io.csr_exc_readout.mtval := CSR_FILE(CSR.MTVAL)
+  io.csr_exc_readout.mstatus := CSR_FILE(CSR.MSTATUS)
+  io.csr_exc_readout.mtvec := CSR_FILE(CSR.MTVEC)
 }
 
 class csr_regfile_wb extends Component with Global_parameter with Interface_MS {
@@ -2081,10 +2088,10 @@ class csr_regfile_wb extends Component with Global_parameter with Interface_MS {
   } .otherwise{ }
   when(io.csr_exc_entry.csr_except_wen === True){
     // todo 恢复
-    //CSR_FILE(CSR.MCAUSE)  := io.csr_exc_entry.mcause
-    //CSR_FILE(CSR.MEPC)    := io.csr_exc_entry.mepc
-    //CSR_FILE(CSR.MTVAL)   := io.csr_exc_entry.mtval   // 老版本叫MBADADDR，新版本叫MTVAL，S和U也一样，找def的时候需要注意 //
-    //CSR_FILE(CSR.MSTATUS) := io.csr_exc_entry.mstatus
+    CSR_FILE(CSR.MCAUSE)  := io.csr_exc_entry.mcause
+    CSR_FILE(CSR.MEPC)    := io.csr_exc_entry.mepc
+    CSR_FILE(CSR.MTVAL)   := io.csr_exc_entry.mtval   // 老版本叫MBADADDR，新版本叫MTVAL，S和U也一样，找def的时候需要注意 //
+    CSR_FILE(CSR.MSTATUS) := io.csr_exc_entry.mstatus
   } .otherwise{ }
 }
 
@@ -2123,6 +2130,7 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   val bju_unit = new bju_unit
   val lsu_unit = new lsu_unit
   val csr_unit = new csr_unit
+  val nop_unit = new nop_unit
 
   // pipeline-6 : commit stage //
   val wb = new wb
@@ -2141,7 +2149,7 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   pc_gen.io.flush_mis_predict := commit.io.flush_mis_predict
   pc_gen.io.flush_mis_predict_target_pc := commit.io.flush_mis_predict_target_pc
   pc_gen.io.flush_except := commit.io.flush_except // todo
-  pc_gen.io.trap_entry := 0 // todo
+  pc_gen.io.trap_entry := csr_regfile.io.csr_exc_readout.mtvec // todo
   //pc_gen.io.epc := 0 // todo
   //pc_gen.io.csr_epc1 := 0 // todo
   //pc_gen.io.csr_epc2 := 0 // todo
@@ -2186,6 +2194,22 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   scoreboard.io.clk := io.clk
   scoreboard.io.rstn := io.rstn
   scoreboard.io.flush := commit.io.flush
+  alu_unit.io.clk := io.clk
+  alu_unit.io.rstn := io.rstn
+  mul1_unit.io.clk := io.clk
+  mul1_unit.io.rstn := io.rstn
+  mul2_unit.io.clk := io.clk
+  mul2_unit.io.rstn := io.rstn
+  div_unit.io.clk := io.clk
+  div_unit.io.rstn := io.rstn
+  bju_unit.io.clk := io.clk
+  bju_unit.io.rstn := io.rstn
+  lsu_unit.io.clk := io.clk
+  lsu_unit.io.rstn := io.rstn
+  csr_unit.io.clk := io.clk
+  csr_unit.io.rstn := io.rstn
+  nop_unit.io.clk := io.clk
+  nop_unit.io.rstn := io.rstn
   wb.io.clk := io.clk
   wb.io.rstn := io.rstn
   commit.io.clk := io.clk
@@ -2233,6 +2257,9 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   //id2issue.io.id2issue_dec_entry connect csr_unit.io.dec_entry
   scoreboard.io.csr_oprand_entry connect csr_unit.io.ex_operand_entry
   scoreboard.io.csr_ex_entry connect csr_unit.io.csr_ex_entry
+  // todo with nop
+  scoreboard.io.nopu_oprand_entry connect nop_unit.io.ex_operand_entry
+  scoreboard.io.nopu_ex_entry connect nop_unit.io.nopu_ex_entry
 
   scoreboard.io.alu_ex_wb_entry connect wb.io.alu_ex_wb_entry
   scoreboard.io.mul1_ex_wb_entry connect wb.io.mul1_ex_wb_entry
@@ -2430,9 +2457,10 @@ trait Interface_MS extends Global_parameter {
     val mepc = UInt(CSRDataBus bits)
     val mtval = UInt(CSRDataBus bits)
     val mstatus = UInt(CSRDataBus bits)
+    val mtvec = UInt(CSRDataBus bits)
     // todo with other mode csr exception registers
     override def asMaster(): Unit = {
-      out(csr_except_wen,mcause,mepc,mtval,mstatus)
+      out(csr_except_wen,mcause,mepc,mtval,mstatus,mtvec)
     }
   }
 
@@ -2538,6 +2566,17 @@ trait Interface_MS extends Global_parameter {
     }
   }
 
+  // nop_res_entry interface
+  case class nop_res_entry(config: CoreConfig) extends Bundle with IMasterSlave {
+    val instr = UInt(InstBus bits)
+    val trans_id = UInt(SCB_ID_WIDTH bits)
+    val pc = UInt(InstAddrBus bits)
+
+    override def asMaster(): Unit = {
+      out(instr,trans_id,pc)
+    }
+  }
+
   // commit_entry interface
   case class commit_entry(config: CoreConfig) extends Bundle with IMasterSlave {
     val reg_wb_addr = UInt(RegAddrBus bits)
@@ -2563,10 +2602,11 @@ trait Interface_MS extends Global_parameter {
     val call_cor = Bool()
     val ret_cor = Bool()
     val target_pc = UInt(InstAddrBus bits)
+    val dec_valid = Bool()
     //val alusel = Bits(ALU_UNIT_SEL().getBitsWidth bits)
 
     override def asMaster(): Unit = {
-      out(reg_wb_addr,reg_wb_data,reg_wb_en,csr_wb_addr,csr_wb_data,csr_wb_en,dcache_wb_en,dcache_wb_addr,dcache_wb_data,dcache_wb_sel,dcache_rd_en,dcache_rd_addr,commit_req,instr,trans_id,pc,branch_cor,call_cor,ret_cor,target_pc)
+      out(reg_wb_addr,reg_wb_data,reg_wb_en,csr_wb_addr,csr_wb_data,csr_wb_en,dcache_wb_en,dcache_wb_addr,dcache_wb_data,dcache_wb_sel,dcache_rd_en,dcache_rd_addr,commit_req,instr,trans_id,pc,branch_cor,call_cor,ret_cor,target_pc,dec_valid)
       in(commit_ack,recv_id,dcache_rd_data)
     }
   }
@@ -2585,10 +2625,11 @@ trait Interface_MS extends Global_parameter {
     val instr = UInt(InstBus bits)
     val pc = UInt(InstAddrBus bits)
     val target_pc = UInt(InstAddrBus bits)
+    val dec_valid = Bool()
     //val alusel = Bits(ALU_UNIT_SEL().getBitsWidth bits)
 
     override def asMaster(): Unit = {
-      out(reg_wb_addr,reg_wb_en,csr_wb_addr,csr_wb_en,dcache_wb_en,dcache_wb_addr,dcache_rd_en,dcache_rd_addr,commit_req,instr,pc,target_pc)
+      out(reg_wb_addr,reg_wb_en,csr_wb_addr,csr_wb_en,dcache_wb_en,dcache_wb_addr,dcache_rd_en,dcache_rd_addr,commit_req,instr,pc,target_pc,dec_valid)
     }
   }
 

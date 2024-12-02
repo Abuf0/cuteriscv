@@ -172,21 +172,28 @@ object RISCV_ISA {
 
 
   object CSR{
+    // todo 最好做define //
+    def MTVEC     = 0x1
+    def MEPC      = 0x2
+    def MCAUSE    = 0x3
+    def MTVAL     = 0x4
+    def MSTATUS   = 0x5
+
     def MVENDORID = 0xF11 // MRO Vendor ID.
     def MARCHID   = 0xF12 // MRO Architecture ID.
     def MIMPID    = 0xF13 // MRO Implementation ID.
     def MHARTID   = 0xF14 // MRO Hardware thread ID.Machine Trap Setup
-    def MSTATUS   = 0x300 // MRW Machine status register.
+    //def MSTATUS   = 0x300 // MRW Machine status register.
     def MISA      = 0x301 // MRW ISA and extensions
     def MEDELEG   = 0x302 // MRW Machine exception delegation register.
     def MIDELEG   = 0x303 // MRW Machine interrupt delegation register.
     def MIE       = 0x304 // MRW Machine interrupt-enable register.
-    def MTVEC     = 0x305 // MRW Machine trap-handler base address. Machine Trap Handling
+    //def MTVEC     = 0x305 // MRW Machine trap-handler base address. Machine Trap Handling
     def MSCRATCH  = 0x340 // MRW Scratch register for machine trap handlers.
-    def MEPC      = 0x341 // MRW Machine exception program counter.
-    def MCAUSE    = 0x342 // MRW Machine trap cause.
+    //def MEPC      = 0x341 // MRW Machine exception program counter.
+    //def MCAUSE    = 0x342 // MRW Machine trap cause.
     def MBADADDR  = 0x343 // MRW Machine bad address.
-    def MTVAL     = 0x343 // the same as MBADADDR
+    //def MTVAL     = 0x343 // the same as MBADADDR
     def MIP       = 0x344 // MRW Machine interrupt pending.
     def MBASE     = 0x380 // MRW Base register.
     def MBOUND    = 0x381 // MRW Bound register.

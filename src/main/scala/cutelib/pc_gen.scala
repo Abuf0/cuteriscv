@@ -33,7 +33,8 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
     val icache_rdy = in Bool()  // from icache
     //val mispredict_entry = master(branch_mispredict_entry(CoreConfig())) // ex stage to ras
   }
-  val pc_r = Reg(UInt(InstAddrBus bits)) init (io.trap_entry)
+  //val pc_r = Reg(UInt(InstAddrBus bits)) init (io.trap_entry)
+  val pc_r = Reg(UInt(InstAddrBus bits)) init (0) // todo
 
   val is_jump = Bool()
   val jump_target = UInt(InstAddrBus bits)

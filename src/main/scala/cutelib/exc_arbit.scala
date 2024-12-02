@@ -21,7 +21,7 @@ case class exc_arbit() extends Component with Global_parameter with Interface_MS
       io.exc_entry.exc_pc := io.exc_commit_entry.pc
       io.exc_entry.exc_cause := U(B(EXC_CAUSE.ILEGAL_ACCESS)).resized
       io.exc_entry.exc_val := io.exc_commit_entry.pc
-    } .elsewhen(False){ // TODO :非法指令编码也要送出来，需要修改
+    } .elsewhen(io.exc_commit_entry.dec_valid === False){ // TODO :非法指令编码异常测试
       io.exc_entry.exc_req := True
       io.exc_entry.exc_pc := io.exc_commit_entry.pc
       io.exc_entry.exc_cause := U(B(EXC_CAUSE.ILEGAL_CODING)).resized

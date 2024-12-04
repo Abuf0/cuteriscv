@@ -10,14 +10,29 @@ case class lsu_unit() extends Component with Global_parameter with Interface_MS 
     //val dec_entry = slave(decorder_entry(CoreConfig())) // from issue stage
     val ex_operand_entry = slave(operand_entry(CoreConfig()))  // from issue
     val lsu_ex_entry = master(lsu_res_entry(CoreConfig()))  // to commit
+    val rd_dcache_interfacec = master(dcache_read_interface(CoreConfig()))  // to dcache
+    val toload_addr = out UInt(DataAddrBus bits)  // to wb
+    val toload_hit = in Bool()
+    val toload_data = in UInt(DataBus bits)
     // todo with lsu //
     val lsu_ack = out Bool()  // to scb
   }
-  val load_raddr = Reg(UInt(DataAddrBus bits)) init(0)
-  val load_rden = Reg(Bool()) init(False)
-  val load_byte = Reg(Bits(4 bits)) init(B"1111")
-  val load_sign = Reg(Bool()) init(False)
+  //val load_raddr = Reg(UInt(DataAddrBus bits)) init(0)
+  //val load_rden = Reg(Bool()) init(False)
+  //val load_byte = Reg(Bits(4 bits)) init(B"1111")
+  //val load_sign = Reg(Bool()) init(False)
+  val load_raddr = UInt(DataAddrBus bits)
+  val load_rden  = Bool()
+  val load_byte  = Bits(4 bits)
+  val load_sign  = Bool()
+
+  load_raddr := 0
+  load_rden  := False
+  load_byte  := B"1111"
+  load_sign  := True
+
   val load_result = Reg(UInt(DataBus bits)) init(0)
+  //val load_result = UInt(DataBus bits)
   val store_waddr = Reg(UInt(DataAddrBus bits)) init(0)
   val store_wten = Reg(Bool()) init(False)
   val store_byte = Reg(Bits(4 bits)) init(B"1111")
@@ -58,6 +73,19 @@ case class lsu_unit() extends Component with Global_parameter with Interface_MS 
   io.lsu_ex_entry.load_rd_byte := load_byte
   io.lsu_ex_entry.result := load_result // from dcache
 
+  io.rd_dcache_interfacec.re := load_rden
+  io.rd_dcache_interfacec.raddr := load_raddr
+  io.rd_dcache_interfacec.sel := U(load_byte)
+  val dcache_rdata = io.rd_dcache_interfacec.rdata
+  val dcache_rdata_real = UInt(DataBus bits)
+
+  io.toload_addr := load_raddr
+  when(io.toload_hit){ // 如果wb buffer中有待提交的SW指令，且写地址==读地址，则forwarding（类似于store buffer）
+    dcache_rdata_real := io.toload_data
+  } .otherwise{
+    dcache_rdata_real := dcache_rdata
+  }
+
   when(io.ex_operand_entry.dec_valid){
     io.ex_operand_entry.busy := True
     ex_operand_entry_instr := io.ex_operand_entry.instr
@@ -74,53 +102,61 @@ case class lsu_unit() extends Component with Global_parameter with Interface_MS 
         load_rden := True
         load_byte := B"0001"
         load_sign := True
-        load_result := U(DataBus bits,default->io.lsu_ex_entry.load_rd_data(DataBus-1),(7 downto 0)->io.lsu_ex_entry.load_rd_data(7 downto 0))
+        load_result := U(DataBus bits,default->dcache_rdata_real(DataBus-1),(7 downto 0)->dcache_rdata_real(7 downto 0))
+        store_wten := False
       }
       is(LH){
         load_raddr := rs1_data+U(imm)
         load_rden := True
         load_byte := B"0011"
         load_sign := True
-        load_result := U(DataBus bits,default->io.lsu_ex_entry.load_rd_data(DataBus-1),(15 downto 0)->io.lsu_ex_entry.load_rd_data(15 downto 0))
+        load_result := U(DataBus bits,default->dcache_rdata_real(DataBus-1),(15 downto 0)->dcache_rdata_real(15 downto 0))
+        store_wten := False
       }
       is(LW){
         load_raddr := rs1_data+U(imm)
         load_rden := True
         load_byte := B"1111"
         load_sign := True
-        load_result := io.lsu_ex_entry.load_rd_data
+        load_result := dcache_rdata_real
+        store_wten := False
       }
       is(LBU){
         load_raddr := rs1_data+U(imm)
         load_rden := True
         load_byte := B"0001"
         load_sign := False
-        load_result := io.lsu_ex_entry.load_rd_data(7 downto 0).resized
+        load_result := dcache_rdata_real(7 downto 0).resized
+        store_wten := False
       }
       is(LHU){
         load_raddr := rs1_data+U(imm)
         load_rden := True
         load_byte := B"1111"
         load_sign := False
-        load_result := io.lsu_ex_entry.load_rd_data(15 downto 0).resized
+        load_result := dcache_rdata_real(15 downto 0).resized
+        store_wten := False
       }
       is(SB){
         store_waddr := rs1_data+U(imm)
         store_wten := True
         store_byte := B"0001"
         store_wdata := rs2_data
+        load_rden := False
       }
       is(SH){
         store_waddr := rs1_data+U(imm)
         store_wten := True
         store_byte := B"0011"
         store_wdata := rs2_data
+        load_rden := False
       }
       is(SW){
         store_waddr := rs1_data+U(imm)
         store_wten := True
         store_byte := B"1111"
         store_wdata := rs2_data
+        load_rden := False
       }
       default{
         /*

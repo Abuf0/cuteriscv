@@ -130,10 +130,24 @@ case class bju_unit() extends Component with Global_parameter with Interface_MS 
   ex_branch_predict_branch_taken := io.ex_branch_predict.branch_taken
   ex_branch_predict_branch_target := io.ex_branch_predict.branch_target
   // todo with call/ret mis
-  io.bju_mispredict.call_cor := False
-  io.bju_mispredict.ret_cor := False
+
+  val branch_cor_unresolve = Reg(Bool) init(False)
+  when(ex_branch_predict_is_branch === True){
+    when(io.bju_mispredict.branch_cor === True){
+      branch_cor_unresolve := True
+    } .otherwise{
+      branch_cor_unresolve := False
+    }
+  } .otherwise{ }
+
+  io.bju_mispredict.call_cor := io.ex_branch_predict.is_call && branch_cor_unresolve
+  io.bju_mispredict.ret_cor := io.ex_branch_predict.is_ret && branch_cor_unresolve
   io.bju_mispredict.branch_cor := ex_branch_predict_is_branch && ((branch_taken =/= ex_branch_predict_branch_taken) || (target_pc =/= ex_branch_predict_branch_target))
   io.bju_mispredict.target_pc := target_pc
+  io.bju_mispredict.is_branch := io.ex_branch_predict.is_branch
+  io.bju_mispredict.is_call := io.ex_branch_predict.is_call
+  io.bju_mispredict.is_ret := io.ex_branch_predict.is_ret
+
 
   /*
   io.bju_mispredict.call_cor := bju_mis_call_cor

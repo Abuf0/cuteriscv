@@ -31,6 +31,7 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
     val resolved_bht_entry = master(bht_predict_entry(CoreConfig())) // ex stage to bht
     val resolved_btb_entry = master(btb_predict_entry(CoreConfig())) // ex stage to btb
     val icache_rdy = in Bool()  // from icache
+    val call_push_target = out UInt(InstAddrBus bits)  // to RAS
     //val mispredict_entry = master(branch_mispredict_entry(CoreConfig())) // ex stage to ras
   }
   //val pc_r = Reg(UInt(InstAddrBus bits)) init (io.trap_entry)
@@ -38,6 +39,10 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
 
   val is_jump = Bool()
   val jump_target = UInt(InstAddrBus bits)
+  val call_push_target = UInt(InstAddrBus bits)
+  call_push_target := 0
+
+  io.call_push_target := call_push_target
 
   /*
   //val flush_r = Reg(Bool()) init(False)
@@ -75,12 +80,14 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
       pc_r := io.flush_mis_predict_target_pc
     } .otherwise{ } // todo
   }.elsewhen(io.icache_rdy === True) { // 包含了stall_push
-    when(is_jump === True) {
+    when(is_jump === True && ~io.if_branch_predict.is_call && ~io.if_branch_predict.is_ret) {  // todo
       pc_r := jump_target
-    }.elsewhen(io.predict_bht_entry.bht_valid === True && io.predict_bht_entry.bht_taken === True) {
+    }.elsewhen(io.if_branch_predict.is_branch && io.predict_bht_entry.bht_valid === True && io.predict_bht_entry.bht_taken === True) {
       pc_r := io.predict_btb_entry.btb_target
     }.elsewhen(io.if_branch_predict.is_call === True) {
-      pc_r := io.predict_btb_entry.btb_target
+      //pc_r := io.predict_btb_entry.btb_target
+      call_push_target := pc_r + 4
+      pc_r := jump_target
     }.elsewhen(io.if_branch_predict.is_ret === True) {
       pc_r := io.ras_target
     }.otherwise {

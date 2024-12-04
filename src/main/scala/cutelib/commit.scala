@@ -8,9 +8,10 @@ case class commit() extends Component with Global_parameter with Interface_MS{
     val clk = in Bool()
     val rstn = in Bool()
     val ex_commit_entry = slave(commit_entry(CoreConfig())) // from scb
+    //val lsu_ex_entry = slave(lsu_res_entry(CoreConfig()))
     val wb_regfile_interface = master(wregfile_interface(CoreConfig()))  // to regfile
     val wb_csr_interface = master(wcsr_interface(CoreConfig())) // to csr regfile
-    val wb_dacahe_interfacec = master(dcache_interface(CoreConfig()))  // to dcache
+    val wb_dacahe_interfacec = master(dcache_write_interface(CoreConfig()))  // to dcache
     val bju_mis_predict = slave(branch_mispredict_entry(CoreConfig())) // from ex stage
     val flush = out Bool()
     val flush_except = out Bool()
@@ -126,17 +127,17 @@ case class commit() extends Component with Global_parameter with Interface_MS{
   when(commit_req_pulse && ~io.flush){ // added flush
     io.wb_regfile_interface.reg_wen := io.ex_commit_entry.reg_wb_en
     io.wb_regfile_interface.reg_waddr := io.ex_commit_entry.reg_wb_addr
-    io.wb_regfile_interface.reg_wdata := io.ex_commit_entry.reg_wb_data
+    io.wb_regfile_interface.reg_wdata := io.ex_commit_entry.reg_wb_data // todo for lsu
     io.wb_csr_interface.reg_wen := io.ex_commit_entry.csr_wb_en
     io.wb_csr_interface.reg_waddr := io.ex_commit_entry.csr_wb_addr
     io.wb_csr_interface.reg_wdata := io.ex_commit_entry.csr_wb_data
     io.wb_dacahe_interfacec.we := io.ex_commit_entry.dcache_wb_en
     io.wb_dacahe_interfacec.waddr := io.ex_commit_entry.dcache_wb_addr
     io.wb_dacahe_interfacec.wdata := io.ex_commit_entry.dcache_wb_data
-    io.wb_dacahe_interfacec.re := io.ex_commit_entry.dcache_rd_en
-    io.wb_dacahe_interfacec.raddr := io.ex_commit_entry.dcache_rd_addr
+    //io.wb_dacahe_interfacec.re := io.ex_commit_entry.dcache_rd_en
+    //io.wb_dacahe_interfacec.raddr := io.ex_commit_entry.dcache_rd_addr  // todo delete
     io.wb_dacahe_interfacec.sel := U(io.ex_commit_entry.dcache_wb_sel)
-    io.ex_commit_entry.dcache_rd_data := io.wb_dacahe_interfacec.rdata
+    //io.ex_commit_entry.dcache_rd_data := io.wb_dacahe_interfacec.rdata
   }.otherwise{
     io.wb_regfile_interface.reg_wen := False
     io.wb_regfile_interface.reg_waddr := 0
@@ -147,11 +148,13 @@ case class commit() extends Component with Global_parameter with Interface_MS{
     io.wb_dacahe_interfacec.we := False
     io.wb_dacahe_interfacec.waddr := 0
     io.wb_dacahe_interfacec.wdata := 0
-    io.wb_dacahe_interfacec.re := False
-    io.wb_dacahe_interfacec.raddr := 0
+    //io.wb_dacahe_interfacec.re := False
+    //io.wb_dacahe_interfacec.raddr := 0
     io.wb_dacahe_interfacec.sel := U"1111"
-    io.ex_commit_entry.dcache_rd_data := 0
+    //io.ex_commit_entry.dcache_rd_data := 0
   }
+
+
   val commit_req_ack = Reg(Bool()) init(False)
   val recv_id = Reg(UInt(SCB_ID_WIDTH bits)) init(SCB_IU_DEEPTH)
   when(commit_req_pulse){

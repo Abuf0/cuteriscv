@@ -124,15 +124,17 @@ case class bju_unit() extends Component with Global_parameter with Interface_MS 
     branch_taken := False
   }
   val ex_branch_predict_is_branch = Reg(Bool()) init(False)
+  val ex_branch_predict_is_jump = Reg(Bool()) init(False)
   val ex_branch_predict_branch_taken = Reg(Bool()) init(False)
   val ex_branch_predict_branch_target = Reg(UInt(InstAddrBus bits)) init(0)
   ex_branch_predict_is_branch := io.ex_branch_predict.is_branch
+  ex_branch_predict_is_jump := io.ex_branch_predict.is_jump
   ex_branch_predict_branch_taken := io.ex_branch_predict.branch_taken
   ex_branch_predict_branch_target := io.ex_branch_predict.branch_target
   // todo with call/ret mis
 
   val branch_cor_unresolve = Reg(Bool) init(False)
-  when(ex_branch_predict_is_branch === True){
+  when(ex_branch_predict_is_branch === True || ex_branch_predict_is_jump === True){
     when(io.bju_mispredict.branch_cor === True){
       branch_cor_unresolve := True
     } .otherwise{
@@ -141,8 +143,8 @@ case class bju_unit() extends Component with Global_parameter with Interface_MS 
   } .otherwise{ }
 
   io.bju_mispredict.call_cor := io.ex_branch_predict.is_call && branch_cor_unresolve
-  io.bju_mispredict.ret_cor := io.ex_branch_predict.is_ret && branch_cor_unresolve
-  io.bju_mispredict.branch_cor := ex_branch_predict_is_branch && ((branch_taken =/= ex_branch_predict_branch_taken) || (target_pc =/= ex_branch_predict_branch_target))
+  io.bju_mispredict.ret_cor := io.ex_branch_predict.is_ret && (branch_cor_unresolve || target_pc =/= ex_branch_predict_branch_target)
+  io.bju_mispredict.branch_cor := (ex_branch_predict_is_branch && ((branch_taken =/= ex_branch_predict_branch_taken) || (target_pc =/= ex_branch_predict_branch_target))) || (ex_branch_predict_is_jump && (target_pc =/= ex_branch_predict_branch_target))
   io.bju_mispredict.target_pc := target_pc
   io.bju_mispredict.is_branch := io.ex_branch_predict.is_branch
   io.bju_mispredict.is_call := io.ex_branch_predict.is_call

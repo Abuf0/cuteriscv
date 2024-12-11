@@ -203,7 +203,7 @@ class btb extends Component with Global_parameter with Interface_MS {
     val target_pc = btb_lut(i)(InstAddrBus downto 1)
     val btb_index = btb_lut(i)(InstAddrBus+InstAddrBus downto InstAddrBus)
     val btb_taken = btb_lut(i)(0)
-    when(io.pc_valid === True && (io.if_branch_predict.is_branch === True || io.if_branch_predict.is_call === True)){
+    when(io.pc_valid === True && (io.if_branch_predict.is_branch === True || io.if_branch_predict.is_call === True || io.if_branch_predict.is_jump === True)){
       when(io.if_branch_predict.pc === btb_index){
         io.predict_btb_entry.btb_valid := True
         io.predict_btb_entry.btb_target := target_pc
@@ -324,10 +324,10 @@ class instr_queue extends Component with Global_parameter with Interface_MS {
     val stall_pop = in Bool() // from scb & ... todo
     val stall_push = out Bool()  // to pc_gen & icache todo
   }
-  val streamA,streamB = Stream(Bits(InstAddrBus+InstAddrBus+InstBus+5 bits))
+  val streamA,streamB = Stream(Bits(InstAddrBus+InstAddrBus+InstBus+6 bits))
 
   val instr_fifo = StreamFifo(
-    dataType = Bits(InstAddrBus+InstAddrBus+InstBus+5 bits),
+    dataType = Bits(InstAddrBus+InstAddrBus+InstBus+6 bits),
     depth    = Instr_FIFO_DEEPTH
   )
   val fifo_full = instr_fifo.io.occupancy > (Instr_FIFO_DEEPTH-1)
@@ -339,7 +339,7 @@ class instr_queue extends Component with Global_parameter with Interface_MS {
     streamA.valid := True
     streamA.payload := io.if_intr_entry.inst##io.if_intr_entry.pc##io.if_branch_predict_entry.branch_target##io.if_branch_predict_entry.branch_taken##
                         io.if_branch_predict_entry.branch_valid##io.if_branch_predict_entry.is_branch##
-                        io.if_branch_predict_entry.is_call##io.if_branch_predict_entry.is_ret
+                        io.if_branch_predict_entry.is_call##io.if_branch_predict_entry.is_ret##io.if_branch_predict_entry.is_jump
   } .otherwise{
     streamA.valid := False
     streamA.payload := 0
@@ -360,15 +360,16 @@ class instr_queue extends Component with Global_parameter with Interface_MS {
     io.if2id_branch_predict_entry.is_call##io.if2id_branch_predict_entry.is_ret) := streamB.payload.asBits
 */
   val streamB_payload = B(streamB.payload)
-  io.if2id_instr_entry.inst := U(streamB_payload(InstAddrBus+InstAddrBus+InstBus+4 downto InstAddrBus+InstAddrBus+5))
-  io.if2id_instr_entry.pc := U(streamB_payload(InstAddrBus+InstAddrBus+4 downto InstAddrBus+5))
-  io.if2id_branch_predict_entry.pc := U(streamB_payload(InstAddrBus+InstAddrBus+4 downto InstAddrBus+5))
-  io.if2id_branch_predict_entry.branch_target := U(streamB_payload(InstAddrBus+4 downto 5))
-  io.if2id_branch_predict_entry.branch_taken := B(streamB_payload(4)).asBool
-  io.if2id_branch_predict_entry.branch_valid := B(streamB_payload(3)).asBool
-  io.if2id_branch_predict_entry.is_branch := B(streamB_payload(2)).asBool
-  io.if2id_branch_predict_entry.is_call := B(streamB_payload(1)).asBool
-  io.if2id_branch_predict_entry.is_ret := B(streamB_payload(0)).asBool
+  io.if2id_instr_entry.inst := U(streamB_payload(InstAddrBus+InstAddrBus+InstBus+5 downto InstAddrBus+InstAddrBus+6))
+  io.if2id_instr_entry.pc := U(streamB_payload(InstAddrBus+InstAddrBus+5 downto InstAddrBus+6))
+  io.if2id_branch_predict_entry.pc := U(streamB_payload(InstAddrBus+InstAddrBus+5 downto InstAddrBus+6))
+  io.if2id_branch_predict_entry.branch_target := U(streamB_payload(InstAddrBus+5 downto 6))
+  io.if2id_branch_predict_entry.branch_taken := B(streamB_payload(5)).asBool
+  io.if2id_branch_predict_entry.branch_valid := B(streamB_payload(4)).asBool
+  io.if2id_branch_predict_entry.is_branch := B(streamB_payload(3)).asBool
+  io.if2id_branch_predict_entry.is_call := B(streamB_payload(2)).asBool
+  io.if2id_branch_predict_entry.is_ret := B(streamB_payload(1)).asBool
+  io.if2id_branch_predict_entry.is_jump := B(streamB_payload(0)).asBool
 
 
 
@@ -807,6 +808,7 @@ class id2issue extends Component with Global_parameter with Interface_MS {
   io.id2issue_branch_predict_entry.is_branch init(False)
   io.id2issue_branch_predict_entry.is_call init(False)
   io.id2issue_branch_predict_entry.is_ret init(False)
+  io.id2issue_branch_predict_entry.is_jump init(False)
 
   when(io.flush === True){
     io.id2issue_dec_entry.pc := 0
@@ -835,6 +837,7 @@ class id2issue extends Component with Global_parameter with Interface_MS {
     io.id2issue_branch_predict_entry.is_branch :=False
     io.id2issue_branch_predict_entry.is_call :=False
     io.id2issue_branch_predict_entry.is_ret :=False
+    io.id2issue_branch_predict_entry.is_jump :=False
   } .elsewhen(io.icache_rdy === True){
     //io.id2issue_dec_entry := io.id_dec_entry
     //io.id2issue_branch_predict_entry := io.id_branch_predict_entry
@@ -863,6 +866,7 @@ class id2issue extends Component with Global_parameter with Interface_MS {
     io.id2issue_branch_predict_entry.is_branch :=io.id_branch_predict_entry.is_branch
     io.id2issue_branch_predict_entry.is_call :=io.id_branch_predict_entry.is_call
     io.id2issue_branch_predict_entry.is_ret :=io.id_branch_predict_entry.is_ret
+    io.id2issue_branch_predict_entry.is_jump :=io.id_branch_predict_entry.is_jump
     when(io.id_dec_entry.predict_flag === True){
       io.id2issue_dec_entry.predict_flag := True
     } .otherwise{ }
@@ -2056,15 +2060,21 @@ class regfile_wb extends Component with Global_parameter with Interface_MS {
   val io = new Bundle {
     val clk = in Bool()
     val rstn = in Bool()
+    val flush = in Bool()
     val write_interface = slave(wregfile_interface(CoreConfig()))  // from commit stage
     //val readop_ctrl = in Vec(Bits(2 bit),REG_NUM) // from scb
+    val writeop_entry = in Vec(UInt(RegDataBus bits),REG_NUM) // from regfile
     val readop_entry = out Vec(UInt(RegDataBus bits),REG_NUM) // to scb
     //val regfile_req = in Bool()
     //val regfile_ack = out Bool()
   }
   val REG_FILE = Vec(Reg(UInt(RegDataBus bits)) init(0),REG_NUM)
   io.readop_entry := REG_FILE
-  when(io.write_interface.reg_wen){
+  when(io.flush){
+    for(i <- 0 until REG_NUM){
+      REG_FILE(i) := io.writeop_entry(i)
+    }
+  } .elsewhen(io.write_interface.reg_wen){
     REG_FILE(io.write_interface.reg_waddr) := io.write_interface.reg_wdata
   } .otherwise{ }
 }
@@ -2204,6 +2214,7 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   ras.io.call_push_target := pc_gen.io.call_push_target
   btb.io.pc_valid := pc_gen.io.pc_valid
   bht.io.pc_valid := pc_gen.io.pc_valid
+  //pc_gen.io.scb_readop_wb_i := regfile_wb.io.readop_entry
 
   //instr_realign.io.icache_entry connect mmu.io.icache_entry // todo with MMU
   instr_realign.io.icache_entry connect io.icache_entry
@@ -2251,6 +2262,7 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   commit.io.rstn := io.rstn
   exc_arbit.io.clk := io.clk
   exc_arbit.io.rstn := io.rstn
+  regfile_wb.io.flush := commit.io.flush
 
   //instr_queue.io.if_intr_entry connect instr_realign.io.instr_realign
   instr_queue.io.if_intr_entry.pc := pc_gen.io.pc
@@ -2316,6 +2328,7 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   scoreboard.io.wb_ras_entry connect ras.io.ex_commit_entry
 
   wb.io.wb_regfile_interface connect regfile_wb.io.write_interface
+  regfile_wb.io.writeop_entry := regfile.io.readop_entry
   //wb.io.wb_csr_interface connect csr_regfile_wb.io.write_interface
   wb.io.head_ptr := scoreboard.io.head_ptr
   wb.io.toload_addr := lsu_unit.io.toload_addr
@@ -2398,9 +2411,10 @@ trait Interface_MS extends Global_parameter {
     val is_branch = Bool()
     val is_call = Bool()
     val is_ret = Bool()
+    val is_jump = Bool()
 
     override def asMaster(): Unit = {
-      out(pc, branch_taken, branch_target,branch_valid,is_branch,is_call,is_ret)
+      out(pc, branch_taken, branch_target,branch_valid,is_branch,is_call,is_ret,is_jump)
     }
   }
 
@@ -2412,10 +2426,11 @@ trait Interface_MS extends Global_parameter {
     val is_branch = Bool()
     val is_call = Bool()
     val is_ret = Bool()
+    val is_jump = Bool()
     val target_pc = UInt(InstAddrBus bits)
 
     override def asMaster(): Unit = {
-      out(branch_cor, call_cor, ret_cor,is_branch,is_call,is_ret,target_pc)
+      out(branch_cor, call_cor, ret_cor,is_branch,is_call,is_ret,is_jump,target_pc)
     }
   }
 
@@ -2649,12 +2664,13 @@ trait Interface_MS extends Global_parameter {
     val is_branch = Bool()
     val is_call = Bool()
     val is_ret = Bool()
+    val is_jump = Bool()
     val target_pc = UInt(InstAddrBus bits)
     val dec_valid = Bool()
     //val alusel = Bits(ALU_UNIT_SEL().getBitsWidth bits)
 
     override def asMaster(): Unit = {
-      out(reg_wb_addr,reg_wb_data,reg_wb_en,csr_wb_addr,csr_wb_data,csr_wb_en,dcache_wb_en,dcache_wb_addr,dcache_wb_data,dcache_wb_sel,dcache_rd_en,dcache_rd_addr,commit_req,instr,trans_id,pc,branch_cor,call_cor,ret_cor,target_pc,dec_valid,is_branch,is_call,is_ret)
+      out(reg_wb_addr,reg_wb_data,reg_wb_en,csr_wb_addr,csr_wb_data,csr_wb_en,dcache_wb_en,dcache_wb_addr,dcache_wb_data,dcache_wb_sel,dcache_rd_en,dcache_rd_addr,commit_req,instr,trans_id,pc,branch_cor,call_cor,ret_cor,target_pc,dec_valid,is_branch,is_call,is_ret,is_jump)
       in(commit_ack,recv_id,dcache_rd_data)
     }
   }
@@ -2784,10 +2800,10 @@ trait Global_parameter {
   val CSR_NUM = 16  //理论上最多可以支持2^12=4096个csr寄存器
   //val CSRValidAddrBus = 5 // 必须是$clog2(CSR_NUM)
 
-  val InstMemNum = 128  // ROM实际大小：64KB
-  val InstMemNumLog2 = 7  // ROM实际使用的地址宽度,即 2^16=65536，PC计数为32bits，实际上对于ROM储存区只用到了16bits即可
-  val DataMemNum    = 32  // // 单个RAM实际大小：64KB
-  val DataMemNumLog2  = 5  // 单个RAM实际使用的地址宽度,即 2^16=65536
+  val InstMemNum = 8192  // ROM实际大小：64KB
+  val InstMemNumLog2 = 13  // ROM实际使用的地址宽度,即 2^16=65536，PC计数为32bits，实际上对于ROM储存区只用到了16bits即可
+  val DataMemNum    = 1024  // // 单个RAM实际大小：64KB
+  val DataMemNumLog2  = 10  // 单个RAM实际使用的地址宽度,即 2^16=65536
   val ByteWidth       = 8
   val MemSelBus = 4 // mem的字节选择宽度（0000-1111）
   val MemSelZero = U"4'b0000"  // 内存字节的初始化选择为第0位

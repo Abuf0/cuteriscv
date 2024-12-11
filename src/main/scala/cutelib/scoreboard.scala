@@ -72,7 +72,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   val IMM_TAB = Vec(Reg(SInt(ImmBus bits)) init(0), SCB_INSTR_DEEPTH)
   val DEC_VLD = Vec(Reg(Bool()) init(False),SCB_INSTR_DEEPTH)
   val PC_TAB = Vec(Reg(UInt(InstAddrBus bits)) init(0), SCB_INSTR_DEEPTH)
-  val BP_TAB = Vec(Reg(UInt(InstAddrBus+InstAddrBus+5 bits)) init(0), SCB_INSTR_DEEPTH)
+  val BP_TAB = Vec(Reg(UInt(InstAddrBus+InstAddrBus+6 bits)) init(0), SCB_INSTR_DEEPTH)
   val PRE_TAB = Vec(Reg(Bool()) init(False),SCB_INSTR_DEEPTH)
 
   val wptr = Reg(UInt(SCB_INSTR_WIDTH+1 bit)) init(0)
@@ -117,6 +117,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   val ex_wb_entry_is_branch = Vec(Reg(Bool()) init(False) , 8)
   val ex_wb_entry_is_call = Vec(Reg(Bool()) init(False) , 8)
   val ex_wb_entry_is_ret = Vec(Reg(Bool()) init(False) , 8)
+  val ex_wb_entry_is_jump = Vec(Reg(Bool()) init(False) , 8)
 
   //val ex_wb_entry_alusel = Reg(Bits(io.issue_dec_entry.alu_sel.getBitsWidth bits)) init(B(ALU_UNIT_SEL.NOPU))
 
@@ -143,6 +144,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   io.alu_ex_wb_entry.is_branch     := ex_wb_entry_is_branch(U(B(ALU_UNIT_SEL.ALUU)))
   io.alu_ex_wb_entry.is_call       := ex_wb_entry_is_call(U(B(ALU_UNIT_SEL.ALUU)))
   io.alu_ex_wb_entry.is_ret        := ex_wb_entry_is_ret(U(B(ALU_UNIT_SEL.ALUU)))
+  io.alu_ex_wb_entry.is_jump        := ex_wb_entry_is_jump(U(B(ALU_UNIT_SEL.ALUU)))
   //io.alu_ex_wb_entry.alusel         := ex_wb_entry_alusel(U(B(ALU_UNIT_SEL.ALUU)))
   //ex_wb_entry_dcache_rd_data(U(B(ALU_UNIT_SEL.ALUU)))    := io.alu_ex_wb_entry.dcache_rd_data
 
@@ -166,9 +168,10 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   io.mul1_ex_wb_entry.call_cor       := ex_wb_entry_call_cor(U(B(ALU_UNIT_SEL.MULU1)))
   io.mul1_ex_wb_entry.ret_cor        := ex_wb_entry_ret_cor(U(B(ALU_UNIT_SEL.MULU1)))
   io.mul1_ex_wb_entry.target_pc      := ex_wb_entry_target_pc(U(B(ALU_UNIT_SEL.MULU1)))
-  io.mul1_ex_wb_entry.is_branch     := ex_wb_entry_is_branch(U(B(ALU_UNIT_SEL.ALUU)))
-  io.mul1_ex_wb_entry.is_call       := ex_wb_entry_is_call(U(B(ALU_UNIT_SEL.ALUU)))
-  io.mul1_ex_wb_entry.is_ret        := ex_wb_entry_is_ret(U(B(ALU_UNIT_SEL.ALUU)))
+  io.mul1_ex_wb_entry.is_branch     := ex_wb_entry_is_branch(U(B(ALU_UNIT_SEL.MULU1)))
+  io.mul1_ex_wb_entry.is_call       := ex_wb_entry_is_call(U(B(ALU_UNIT_SEL.MULU1)))
+  io.mul1_ex_wb_entry.is_ret        := ex_wb_entry_is_ret(U(B(ALU_UNIT_SEL.MULU1)))
+  io.mul1_ex_wb_entry.is_jump        := ex_wb_entry_is_jump(U(B(ALU_UNIT_SEL.MULU1)))
   //io.mul1_ex_wb_entry.alusel         := ex_wb_entry_alusel(U(B(ALU_UNIT_SEL.ALUU)))
   //ex_wb_entry_dcache_rd_data(U(B(ALU_UNIT_SEL.MULU1)))    := io.mul1_ex_wb_entry.dcache_rd_data
 
@@ -192,9 +195,10 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   io.mul2_ex_wb_entry.call_cor       := ex_wb_entry_call_cor(U(B(ALU_UNIT_SEL.MULU2)))
   io.mul2_ex_wb_entry.ret_cor        := ex_wb_entry_ret_cor(U(B(ALU_UNIT_SEL.MULU2)))
   io.mul2_ex_wb_entry.target_pc      := ex_wb_entry_target_pc(U(B(ALU_UNIT_SEL.MULU2)))
-  io.mul2_ex_wb_entry.is_branch     := ex_wb_entry_is_branch(U(B(ALU_UNIT_SEL.ALUU)))
-  io.mul2_ex_wb_entry.is_call       := ex_wb_entry_is_call(U(B(ALU_UNIT_SEL.ALUU)))
-  io.mul2_ex_wb_entry.is_ret        := ex_wb_entry_is_ret(U(B(ALU_UNIT_SEL.ALUU)))
+  io.mul2_ex_wb_entry.is_branch     := ex_wb_entry_is_branch(U(B(ALU_UNIT_SEL.MULU2)))
+  io.mul2_ex_wb_entry.is_call       := ex_wb_entry_is_call(U(B(ALU_UNIT_SEL.MULU2)))
+  io.mul2_ex_wb_entry.is_ret        := ex_wb_entry_is_ret(U(B(ALU_UNIT_SEL.MULU2)))
+  io.mul2_ex_wb_entry.is_jump        := ex_wb_entry_is_jump(U(B(ALU_UNIT_SEL.MULU2)))
   //io.mul2_ex_wb_entry.alusel         := ex_wb_entry_alusel(U(B(ALU_UNIT_SEL.MULU2)))
   //ex_wb_entry_dcache_rd_data(U(B(ALU_UNIT_SEL.MULU2)))    := io.mul2_ex_wb_entry.dcache_rd_data
 
@@ -218,9 +222,10 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   io.divu_ex_wb_entry.call_cor       := ex_wb_entry_call_cor(U(B(ALU_UNIT_SEL.DIVU)))
   io.divu_ex_wb_entry.ret_cor        := ex_wb_entry_ret_cor(U(B(ALU_UNIT_SEL.DIVU)))
   io.divu_ex_wb_entry.target_pc      := ex_wb_entry_target_pc(U(B(ALU_UNIT_SEL.DIVU)))
-  io.divu_ex_wb_entry.is_branch     := ex_wb_entry_is_branch(U(B(ALU_UNIT_SEL.ALUU)))
-  io.divu_ex_wb_entry.is_call       := ex_wb_entry_is_call(U(B(ALU_UNIT_SEL.ALUU)))
-  io.divu_ex_wb_entry.is_ret        := ex_wb_entry_is_ret(U(B(ALU_UNIT_SEL.ALUU)))
+  io.divu_ex_wb_entry.is_branch     := ex_wb_entry_is_branch(U(B(ALU_UNIT_SEL.DIVU)))
+  io.divu_ex_wb_entry.is_call       := ex_wb_entry_is_call(U(B(ALU_UNIT_SEL.DIVU)))
+  io.divu_ex_wb_entry.is_ret        := ex_wb_entry_is_ret(U(B(ALU_UNIT_SEL.DIVU)))
+  io.divu_ex_wb_entry.is_jump        := ex_wb_entry_is_jump(U(B(ALU_UNIT_SEL.DIVU)))
   //io.divu_ex_wb_entry.alusel         := ex_wb_entry_alusel(U(B(ALU_UNIT_SEL.DIVU)))
   //ex_wb_entry_dcache_rd_data(U(B(ALU_UNIT_SEL.DIVU)))    := io.divu_ex_wb_entry.dcache_rd_data
 
@@ -244,9 +249,10 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   io.bju_ex_wb_entry.call_cor       := ex_wb_entry_call_cor(U(B(ALU_UNIT_SEL.BJU)))
   io.bju_ex_wb_entry.ret_cor        := ex_wb_entry_ret_cor(U(B(ALU_UNIT_SEL.BJU)))
   io.bju_ex_wb_entry.target_pc      := ex_wb_entry_target_pc(U(B(ALU_UNIT_SEL.BJU)))
-  io.bju_ex_wb_entry.is_branch     := ex_wb_entry_is_branch(U(B(ALU_UNIT_SEL.ALUU)))
-  io.bju_ex_wb_entry.is_call       := ex_wb_entry_is_call(U(B(ALU_UNIT_SEL.ALUU)))
-  io.bju_ex_wb_entry.is_ret        := ex_wb_entry_is_ret(U(B(ALU_UNIT_SEL.ALUU)))
+  io.bju_ex_wb_entry.is_branch     := ex_wb_entry_is_branch(U(B(ALU_UNIT_SEL.BJU)))
+  io.bju_ex_wb_entry.is_call       := ex_wb_entry_is_call(U(B(ALU_UNIT_SEL.BJU)))
+  io.bju_ex_wb_entry.is_ret        := ex_wb_entry_is_ret(U(B(ALU_UNIT_SEL.BJU)))
+  io.bju_ex_wb_entry.is_jump        := ex_wb_entry_is_jump(U(B(ALU_UNIT_SEL.BJU)))
   //io.bju_ex_wb_entry.alusel         := ex_wb_entry_alusel(U(B(ALU_UNIT_SEL.BJU)))
   //ex_wb_entry_dcache_rd_data(U(B(ALU_UNIT_SEL.BJU)))    := io.bju_ex_wb_entry.dcache_rd_data
 
@@ -270,9 +276,10 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   io.lsu_ex_wb_entry.call_cor       := ex_wb_entry_call_cor(U(B(ALU_UNIT_SEL.LSU)))
   io.lsu_ex_wb_entry.ret_cor        := ex_wb_entry_ret_cor(U(B(ALU_UNIT_SEL.LSU)))
   io.lsu_ex_wb_entry.target_pc      := ex_wb_entry_target_pc(U(B(ALU_UNIT_SEL.LSU)))
-  io.lsu_ex_wb_entry.is_branch     := ex_wb_entry_is_branch(U(B(ALU_UNIT_SEL.ALUU)))
-  io.lsu_ex_wb_entry.is_call       := ex_wb_entry_is_call(U(B(ALU_UNIT_SEL.ALUU)))
-  io.lsu_ex_wb_entry.is_ret        := ex_wb_entry_is_ret(U(B(ALU_UNIT_SEL.ALUU)))
+  io.lsu_ex_wb_entry.is_branch     := ex_wb_entry_is_branch(U(B(ALU_UNIT_SEL.LSU)))
+  io.lsu_ex_wb_entry.is_call       := ex_wb_entry_is_call(U(B(ALU_UNIT_SEL.LSU)))
+  io.lsu_ex_wb_entry.is_ret        := ex_wb_entry_is_ret(U(B(ALU_UNIT_SEL.LSU)))
+  io.lsu_ex_wb_entry.is_jump        := ex_wb_entry_is_jump(U(B(ALU_UNIT_SEL.LSU)))
   //io.lsu_ex_wb_entry.alusel         := ex_wb_entry_alusel(U(B(ALU_UNIT_SEL.LSU)))
   //ex_wb_entry_dcache_rd_data(U(B(ALU_UNIT_SEL.LSU)))    := io.lsu_ex_wb_entry.dcache_rd_data
 
@@ -296,9 +303,10 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   io.csr_ex_wb_entry.call_cor       := ex_wb_entry_call_cor(U(B(ALU_UNIT_SEL.CSR)))
   io.csr_ex_wb_entry.ret_cor        := ex_wb_entry_ret_cor(U(B(ALU_UNIT_SEL.CSR)))
   io.csr_ex_wb_entry.target_pc      := ex_wb_entry_target_pc(U(B(ALU_UNIT_SEL.CSR)))
-  io.csr_ex_wb_entry.is_branch     := ex_wb_entry_is_branch(U(B(ALU_UNIT_SEL.ALUU)))
-  io.csr_ex_wb_entry.is_call       := ex_wb_entry_is_call(U(B(ALU_UNIT_SEL.ALUU)))
-  io.csr_ex_wb_entry.is_ret        := ex_wb_entry_is_ret(U(B(ALU_UNIT_SEL.ALUU)))
+  io.csr_ex_wb_entry.is_branch     := ex_wb_entry_is_branch(U(B(ALU_UNIT_SEL.CSR)))
+  io.csr_ex_wb_entry.is_call       := ex_wb_entry_is_call(U(B(ALU_UNIT_SEL.CSR)))
+  io.csr_ex_wb_entry.is_ret        := ex_wb_entry_is_ret(U(B(ALU_UNIT_SEL.CSR)))
+  io.csr_ex_wb_entry.is_jump        := ex_wb_entry_is_jump(U(B(ALU_UNIT_SEL.CSR)))
   //io.csr_ex_wb_entry.alusel         := ex_wb_entry_alusel(U(B(ALU_UNIT_SEL.CSR)))
   //ex_wb_entry_dcache_rd_data(U(B(ALU_UNIT_SEL.CSR)))    := io.csr_ex_wb_entry.dcache_rd_data
 
@@ -322,9 +330,10 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   io.nopu_ex_wb_entry.call_cor       := ex_wb_entry_call_cor(U(B(ALU_UNIT_SEL.NOPU)))
   io.nopu_ex_wb_entry.ret_cor        := ex_wb_entry_ret_cor(U(B(ALU_UNIT_SEL.NOPU)))
   io.nopu_ex_wb_entry.target_pc      := ex_wb_entry_target_pc(U(B(ALU_UNIT_SEL.NOPU)))
-  io.nopu_ex_wb_entry.is_branch     := ex_wb_entry_is_branch(U(B(ALU_UNIT_SEL.ALUU)))
-  io.nopu_ex_wb_entry.is_call       := ex_wb_entry_is_call(U(B(ALU_UNIT_SEL.ALUU)))
-  io.nopu_ex_wb_entry.is_ret        := ex_wb_entry_is_ret(U(B(ALU_UNIT_SEL.ALUU)))
+  io.nopu_ex_wb_entry.is_branch     := ex_wb_entry_is_branch(U(B(ALU_UNIT_SEL.NOPU)))
+  io.nopu_ex_wb_entry.is_call       := ex_wb_entry_is_call(U(B(ALU_UNIT_SEL.NOPU)))
+  io.nopu_ex_wb_entry.is_ret        := ex_wb_entry_is_ret(U(B(ALU_UNIT_SEL.NOPU)))
+  io.nopu_ex_wb_entry.is_jump        := ex_wb_entry_is_jump(U(B(ALU_UNIT_SEL.NOPU)))
   //io.nopu_ex_wb_entry.alusel         := ex_wb_entry_alusel(U(B(ALU_UNIT_SEL.NOPU)))
   //ex_wb_entry_dcache_rd_data(U(B(ALU_UNIT_SEL.NOPU)))    := io.nopu_ex_wb_entry.dcache_rd_data
 
@@ -354,6 +363,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   val wb_commit_entry_is_branch = Reg(Bool()) init(False)
   val wb_commit_entry_is_call = Reg(Bool()) init(False)
   val wb_commit_entry_is_ret = Reg(Bool()) init(False)
+  val wb_commit_entry_is_jump = Reg(Bool()) init(False)
 
   io.wb_commit_entry.reg_wb_addr := wb_commit_entry_reg_wb_addr
   io.wb_commit_entry.reg_wb_data := wb_commit_entry_reg_wb_data
@@ -381,6 +391,8 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   io.wb_commit_entry.is_branch := wb_commit_entry_is_branch
   io.wb_commit_entry.is_call := wb_commit_entry_is_call
   io.wb_commit_entry.is_ret := wb_commit_entry_is_ret
+  io.wb_commit_entry.is_jump := wb_commit_entry_is_jump
+
 
   io.wb_ras_entry.is_call := io.wb_commit_entry.is_call
   io.wb_ras_entry.is_ret := io.wb_commit_entry.is_ret
@@ -503,7 +515,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
     IMM_TAB(windex) := io.issue_dec_entry.imm
     DEC_VLD(windex) := io.issue_dec_entry.dec_valid
     PC_TAB(windex) := io.issue_dec_entry.pc
-    BP_TAB(windex) := U(io.issue_branch_predict_entry.pc##io.issue_branch_predict_entry.branch_target##io.issue_branch_predict_entry.is_branch##io.issue_branch_predict_entry.is_call##io.issue_branch_predict_entry.is_ret##io.issue_branch_predict_entry.branch_valid##io.issue_branch_predict_entry.branch_taken)
+    BP_TAB(windex) := U(io.issue_branch_predict_entry.pc##io.issue_branch_predict_entry.branch_target##io.issue_branch_predict_entry.is_branch##io.issue_branch_predict_entry.is_call##io.issue_branch_predict_entry.is_ret##io.issue_branch_predict_entry.is_jump##io.issue_branch_predict_entry.branch_valid##io.issue_branch_predict_entry.branch_taken)
     PRE_TAB(windex) := io.issue_dec_entry.predict_flag
   }. otherwise{}
 
@@ -624,6 +636,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   io.scb_branch_predict_entry.is_branch := False
   io.scb_branch_predict_entry.is_call := False
   io.scb_branch_predict_entry.is_ret := False
+  io.scb_branch_predict_entry.is_jump := False
   io.scb_branch_predict_entry.branch_valid := False
   io.scb_branch_predict_entry.branch_taken := False
 
@@ -664,11 +677,12 @@ case class scoreboard () extends Component with Global_parameter with Interface_
     //trans_id := index.resized
     trans_id := index
     val pc = PC_TAB(index)
-    val bp_pc = BP_TAB(index)(InstAddrBus+InstAddrBus+4 downto InstAddrBus+5)
-    val bp_branch_target = BP_TAB(index)(InstAddrBus+4 downto 5)
-    val bp_is_branch = BP_TAB(index)(4 downto 4)
-    val bp_is_call = BP_TAB(index)(3 downto 3)
-    val bp_is_ret = BP_TAB(index)(2 downto 2)
+    val bp_pc = BP_TAB(index)(InstAddrBus+InstAddrBus+5 downto InstAddrBus+6)
+    val bp_branch_target = BP_TAB(index)(InstAddrBus+5 downto 6)
+    val bp_is_branch = BP_TAB(index)(5 downto 5)
+    val bp_is_call = BP_TAB(index)(4 downto 4)
+    val bp_is_ret = BP_TAB(index)(3 downto 3)
+    val bp_is_jump = BP_TAB(index)(2 downto 2)
     val bp_branch_valid = BP_TAB(index)(1 downto 1)
     val bp_branch_taken = BP_TAB(index)(0 downto 0)
     //instr_end_tab(i) := False
@@ -859,6 +873,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
               io.scb_branch_predict_entry.is_branch := bp_is_branch.asBool
               io.scb_branch_predict_entry.is_call := bp_is_call.asBool
               io.scb_branch_predict_entry.is_ret := bp_is_ret.asBool
+              io.scb_branch_predict_entry.is_jump := bp_is_jump.asBool
               io.scb_branch_predict_entry.branch_valid := bp_branch_valid.asBool
               io.scb_branch_predict_entry.branch_taken := bp_branch_taken.asBool
             }
@@ -918,6 +933,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           ex_wb_entry_is_branch(U(alu_sel)) := False
           ex_wb_entry_is_call(U(alu_sel)) := False
           ex_wb_entry_is_ret(U(alu_sel)) := False
+          ex_wb_entry_is_jump(U(alu_sel)) := False
           ex_wb_entry_target_pc(U(alu_sel)) := U"0".resized
           ex_wb_entry_csr_wb_en(U(alu_sel)) := False
           ex_wb_entry_csr_wb_addr(U(alu_sel)) := U"0".resized
@@ -956,6 +972,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
               ex_wb_entry_is_branch(U(alu_sel)) := False
               ex_wb_entry_is_call(U(alu_sel)) := False
               ex_wb_entry_is_ret(U(alu_sel)) := False
+              ex_wb_entry_is_jump(U(alu_sel)) := False
               ex_wb_entry_target_pc(U(alu_sel)) := U"0".resized
               ex_wb_entry_csr_wb_en(U(alu_sel)) := False
               ex_wb_entry_csr_wb_addr(U(alu_sel)) := U"0".resized
@@ -982,6 +999,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
               ex_wb_entry_is_branch(U(alu_sel)) := False
               ex_wb_entry_is_call(U(alu_sel)) := False
               ex_wb_entry_is_ret(U(alu_sel)) := False
+              ex_wb_entry_is_jump(U(alu_sel)) := False
               ex_wb_entry_target_pc(U(alu_sel)) := U"0".resized
               ex_wb_entry_csr_wb_en(U(alu_sel)) := False
               ex_wb_entry_csr_wb_addr(U(alu_sel)) := U"0".resized
@@ -1008,6 +1026,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
               ex_wb_entry_is_branch(U(alu_sel)) := False
               ex_wb_entry_is_call(U(alu_sel)) := False
               ex_wb_entry_is_ret(U(alu_sel)) := False
+              ex_wb_entry_is_jump(U(alu_sel)) := False
               ex_wb_entry_target_pc(U(alu_sel)) := U"0".resized
               ex_wb_entry_csr_wb_en(U(alu_sel)) := False
               ex_wb_entry_csr_wb_addr(U(alu_sel)) := U"0".resized
@@ -1034,6 +1053,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
               ex_wb_entry_is_branch(U(alu_sel)) := False
               ex_wb_entry_is_call(U(alu_sel)) := False
               ex_wb_entry_is_ret(U(alu_sel)) := False
+              ex_wb_entry_is_jump(U(alu_sel)) := False
               ex_wb_entry_target_pc(U(alu_sel)) := U"0".resized
               ex_wb_entry_csr_wb_en(U(alu_sel)) := False
               ex_wb_entry_csr_wb_addr(U(alu_sel)) := U"0".resized
@@ -1062,6 +1082,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
               ex_wb_entry_is_branch(U(alu_sel)) := False
               ex_wb_entry_is_call(U(alu_sel)) := False
               ex_wb_entry_is_ret(U(alu_sel)) := False
+              ex_wb_entry_is_jump(U(alu_sel)) := False
               ex_wb_entry_target_pc(U(alu_sel)) := U"0".resized
               ex_wb_entry_csr_wb_en(U(alu_sel)) := False
               ex_wb_entry_csr_wb_addr(U(alu_sel)) := U"0".resized
@@ -1083,6 +1104,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
               ex_wb_entry_is_branch(U(alu_sel)) := io.bju_mis_predict_entry.is_branch
               ex_wb_entry_is_call(U(alu_sel)) := io.bju_mis_predict_entry.is_call
               ex_wb_entry_is_ret(U(alu_sel)) := io.bju_mis_predict_entry.is_ret
+              ex_wb_entry_is_jump(U(alu_sel)) := io.bju_mis_predict_entry.is_jump
               ex_wb_entry_dcache_wb_en(U(alu_sel)) := False
               ex_wb_entry_dcache_wb_addr(U(alu_sel)) := U"0".resized
               ex_wb_entry_dcache_wb_data(U(alu_sel)) := U"0".resized
@@ -1115,6 +1137,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
               ex_wb_entry_is_branch(U(alu_sel)) := False
               ex_wb_entry_is_call(U(alu_sel)) := False
               ex_wb_entry_is_ret(U(alu_sel)) := False
+              ex_wb_entry_is_jump(U(alu_sel)) := False
               ex_wb_entry_target_pc(U(alu_sel)) := U"0".resized
               ex_wb_entry_csr_wb_en(U(alu_sel)) := csr_wten
               ex_wb_entry_csr_wb_addr(U(alu_sel)) := csr_addr
@@ -1141,6 +1164,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
               ex_wb_entry_is_branch(U(alu_sel)) := False
               ex_wb_entry_is_call(U(alu_sel)) := False
               ex_wb_entry_is_ret(U(alu_sel)) := False
+              ex_wb_entry_is_jump(U(alu_sel)) := False
               ex_wb_entry_target_pc(U(alu_sel)) := U"0".resized
               ex_wb_entry_csr_wb_en(U(alu_sel)) := False
               ex_wb_entry_csr_wb_addr(U(alu_sel)) := U"0".resized
@@ -1166,6 +1190,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
               ex_wb_entry_is_branch(U(alu_sel)) := False
               ex_wb_entry_is_call(U(alu_sel)) := False
               ex_wb_entry_is_ret(U(alu_sel)) := False
+              ex_wb_entry_is_jump(U(alu_sel)) := False
               ex_wb_entry_target_pc(U(alu_sel)) := U"0".resized
               ex_wb_entry_csr_wb_en(U(alu_sel)) := False
               ex_wb_entry_csr_wb_addr(U(alu_sel)) := U"0".resized
@@ -1180,6 +1205,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
         //when (io.flush === True && predict_flag === True){  // todo : 现在统一在commit时处理flush，因此保证了该条指令是oldest，不需要predict_flag了
         when (io.flush === True){
           SCB_IU_TAB(i) := IDLE
+          ex_wb_req(U(alu_sel))(i) := False
           //instr_end_tab(i) := True
           FU_ST(U(alu_sel)) := False
           REG_ST_W(rd_addr) := False
@@ -1217,6 +1243,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           wb_commit_entry_is_branch := io.wb_scb_entry.is_branch
           wb_commit_entry_is_call := io.wb_scb_entry.is_call
           wb_commit_entry_is_ret := io.wb_scb_entry.is_ret
+          wb_commit_entry_is_jump := io.wb_scb_entry.is_jump
           wb_commit_entry_target_pc := io.wb_scb_entry.target_pc
           wb_commit_entry_csr_wb_en := io.wb_scb_entry.csr_wb_en
           wb_commit_entry_csr_wb_addr := io.wb_scb_entry.csr_wb_addr

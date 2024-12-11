@@ -32,6 +32,7 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
     val resolved_btb_entry = master(btb_predict_entry(CoreConfig())) // ex stage to btb
     val icache_rdy = in Bool()  // from icache
     val call_push_target = out UInt(InstAddrBus bits)  // to RAS
+    //val scb_readop_wb_i = in Vec(UInt(RegDataBus bits),REG_NUM) // from regfile wb
     //val mispredict_entry = master(branch_mispredict_entry(CoreConfig())) // ex stage to ras
   }
   //val pc_r = Reg(UInt(InstAddrBus bits)) init (io.trap_entry)
@@ -87,7 +88,11 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
     }.elsewhen(io.if_branch_predict.is_call === True) {
       //pc_r := io.predict_btb_entry.btb_target
       call_push_target := pc_r + 4
-      pc_r := jump_target
+      when(is_jump === True) {  // JAL call
+        pc_r := jump_target
+      } .otherwise{ // JALR call
+        pc_r := io.predict_btb_entry.btb_target
+      }
     }.elsewhen(io.if_branch_predict.is_ret === True) {
       pc_r := io.ras_target
     }.otherwise {
@@ -98,22 +103,27 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
   // RSICV中没有显式的call ret
   when(io.instr_realign.valid===True){
     io.if_branch_predict.is_branch := io.instr_realign.inst(6 downto 0) === U"1100011" // branch
-    io.if_branch_predict.is_call := io.instr_realign.inst(6 downto 4) === U"110" && io.instr_realign.inst(2 downto 0) === U"111" && io.instr_realign.inst(7) === True// JAL or JALR, rd=x1/x5
-    io.if_branch_predict.is_ret := io.instr_realign.inst(6 downto 0) === U"1100111" && io.instr_realign.inst(7) === False && io.instr_realign.inst(19 downto 18) === U"00" && io.instr_realign.inst(16 downto 15) === U"01"   // JALR, rd=0, rs=x1/x5
+    io.if_branch_predict.is_call := io.instr_realign.inst(6 downto 4) === U"110" && io.instr_realign.inst(2 downto 0) === U"111" && (io.instr_realign.inst(11 downto 7) === U"00001" || io.instr_realign.inst(11 downto 7) === U"00101")// JAL or JALR, rd=x1/x5
+    io.if_branch_predict.is_ret := io.instr_realign.inst(6 downto 0) === U"1100111" && io.instr_realign.inst(11 downto 7) === U"0" && io.instr_realign.inst(19 downto 18) === U"00" && io.instr_realign.inst(16 downto 15) === U"01"   // JALR, rd=0, rs=x1/x5
+    io.if_branch_predict.is_jump := io.instr_realign.inst(6 downto 0) === U"1100111" //&& io.if_branch_predict.is_call === False && io.if_branch_predict.is_ret === False // JALR
     //is_jump := io.if_branch_predict.is_call // TODO
     when(io.instr_realign.inst(6 downto 0) === U"1101111"){  // JAL
       jump_target := pc_r + U(InstBus-20 bits,default -> io.instr_realign.inst(31)) @@ io.instr_realign.inst(19 downto 12)@@io.instr_realign.inst(20 downto 20)@@io.instr_realign.inst(30 downto 21)@@U"0"  // 符号位扩展
       is_jump := True
-    } .elsewhen(io.instr_realign.inst(6 downto 0) === U"1100111"){ // JALR
-      jump_target := pc_r + U(InstBus-12 bits,default -> io.instr_realign.inst(31)) @@ io.instr_realign.inst(31 downto 20) // 符号位扩展
+    } /*
+    .elsewhen(io.instr_realign.inst(6 downto 0) === U"1100111"){ // JALR
+      //jump_target := io.scb_readop_wb_i(io.instr_realign.inst(19 downto 15)) + U(InstBus-12 bits,default -> io.instr_realign.inst(31)) @@ io.instr_realign.inst(31 downto 20) // 符号位扩展
+      jump_target :=
       is_jump := True
-    } .otherwise{
+    } */
+      .otherwise{
       jump_target := io.trap_entry
     }
   } .otherwise {
     io.if_branch_predict.is_branch := False
     io.if_branch_predict.is_call := False
     io.if_branch_predict.is_ret := False
+    io.if_branch_predict.is_jump := False
     is_jump := False
     jump_target := io.trap_entry
   }
@@ -122,7 +132,7 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
   io.pc_valid := io.instr_realign.valid
 
   io.if_branch_predict.pc := io.pc
-  io.if_branch_predict.branch_valid := io.if_branch_predict.is_branch || io.if_branch_predict.is_call
+  io.if_branch_predict.branch_valid := io.if_branch_predict.is_branch || io.if_branch_predict.is_call || io.if_branch_predict.is_jump
   io.if_branch_predict.branch_taken := io.predict_bht_entry.bht_taken
   io.if_branch_predict.branch_target := io.predict_btb_entry.btb_target
 }

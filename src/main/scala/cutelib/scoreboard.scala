@@ -949,7 +949,9 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           //ex_commit_entry_commit_req := True
           ex_wb_req(U(alu_sel))(i) := True
           FU_ST(U(alu_sel)) := False  // 释放Fucntion Unit
-          REG_ST_NW(rd_addr) := False // 释放WB的dest寄存器
+          when(rd_wten === True) {  // todo
+            REG_ST_NW(rd_addr) := False // 释放WB的dest寄存器
+          } .otherwise{}
           switch(alu_sel){
             is(B(ALU_UNIT_SEL.ALUU)){ // todo 每个ALLU_UNIT需要一组ex_wb_entry，支持并行送入WB //
               ex_wb_entry_instr(U(alu_sel)) := io.alu_ex_entry.instr

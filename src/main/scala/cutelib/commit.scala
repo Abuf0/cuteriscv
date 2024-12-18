@@ -43,7 +43,9 @@ case class commit() extends Component with Global_parameter with Interface_MS{
   io.exc_commit_entry.dec_valid := io.ex_commit_entry.dec_valid
   // branch predict flush //
   //val flush_mis_predict = io.bju_mis_predict.branch_cor || io.bju_mis_predict.ret_cor || io.bju_mis_predict.call_cor
-  val flush_mis_predict = io.ex_commit_entry.branch_cor || io.ex_commit_entry.ret_cor || io.ex_commit_entry.call_cor
+  //val flush_mis_predict = io.ex_commit_entry.branch_cor || io.ex_commit_entry.ret_cor || io.ex_commit_entry.call_cor
+  val flush_mis_predict = (io.ex_commit_entry.branch_cor || io.ex_commit_entry.ret_cor || io.ex_commit_entry.call_cor) && io.ex_commit_entry.commit_req  // fix: 修复连续多条分支预测失败时，cor为长电平，得到第一个flush pulse
+
   val flush_mis_predict_target_pc = io.ex_commit_entry.target_pc
   val flush_mis_predict_d1 = Reg(Bool()) init(False)
   flush_mis_predict_d1 := flush_mis_predict
@@ -124,7 +126,8 @@ case class commit() extends Component with Global_parameter with Interface_MS{
   // commit to regfile & memory //
   val commit_req_d1 = RegNext(io.ex_commit_entry.commit_req, False)
   val  commit_req_pulse = io.ex_commit_entry.commit_req & ~commit_req_d1
-  when(commit_req_pulse && ~io.flush){ // added flush
+  //when(commit_req_pulse && ~io.flush){ // added flush
+  when(commit_req_pulse && ~flush_req_pulse){  // todo: 分支预测失败指令是否要提交？ 中断异常指令是否要提交？
     io.wb_regfile_interface.reg_wen := io.ex_commit_entry.reg_wb_en
     io.wb_regfile_interface.reg_waddr := io.ex_commit_entry.reg_wb_addr
     io.wb_regfile_interface.reg_wdata := io.ex_commit_entry.reg_wb_data // todo for lsu

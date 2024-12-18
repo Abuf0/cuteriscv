@@ -145,14 +145,15 @@ case class decorder() extends Component with Global_parameter with Interface_MS 
       is(JAL){
         dec_alu_sel := ALU_UNIT_SEL.BJU
         dec_op_type := OP_TYPE.OP_JUMP_BRANCH
-        dec_rd_entry.reg_wten := True
+        dec_rd_entry.reg_wten := (dec_rd_entry.reg_addr =/= U("0"))
         dec_imm := S(io.id_instr_entry.inst(31 downto 31)@@io.id_instr_entry.inst(19 downto 12)@@io.id_instr_entry.inst(20 downto 20)@@io.id_instr_entry.inst(30 downto 21)@@U"0").resize(ImmBus bits)
         dec_valid := True
       }
       is(JALR){
         dec_alu_sel := ALU_UNIT_SEL.BJU
         dec_op_type := OP_TYPE.OP_JUMP_BRANCH
-        dec_rd_entry.reg_wten := True
+        dec_rs1_entry.reg_rden := True
+        dec_rd_entry.reg_wten := (dec_rd_entry.reg_addr =/= U("0"))
         dec_imm := imm_i
         dec_valid := True
       }

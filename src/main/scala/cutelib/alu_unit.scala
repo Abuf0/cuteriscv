@@ -114,7 +114,7 @@ case class alu_unit() extends Component with Global_parameter with Interface_MS 
             alu_res_shift := U(imm) |<<12
           }
           is(AUIPC) {
-            alu_res_shift := U(imm) |<<12 + pc
+            alu_res_shift := (U(imm) |<<12) + pc
           }
           //...//
           default {

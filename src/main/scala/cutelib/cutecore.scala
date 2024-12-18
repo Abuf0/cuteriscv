@@ -13,6 +13,7 @@ import bju_unit._
 import lsu_unit._
 import csr_unit._
 import nop_unit._
+import mmu._
 
 
 /*
@@ -386,8 +387,10 @@ class icache extends Component with Global_parameter with Interface_MS {
     val rstn = in Bool()
     val icache_rdy = out Bool()  // from instr_queue
     val icache_entry = slave(icache_interface(CoreConfig())) // to instr_realign
+    val icache_read_entry = slave(icache_read_interface(CoreConfig()))
   }
   // todo
+  /*
   val init_array = new Array[UInt](InstMemNum)
   // ALU指令的测试
   /*
@@ -462,18 +465,41 @@ class icache extends Component with Global_parameter with Interface_MS {
   init_array(59)=U"32'h00008067"
 
   for(i <- 60 until InstMemNum) {init_array(i)=U"32'h00000000"}
+*/
+  //val icache_rom = Mem(UInt(InstBus bits),InstMemNum)
+  //val icache_rom = Mem(UInt(InstBus bits),initialContent = init_array)
 
-  //  val mem_rom = Mem(UInt(InstBus bits),InstMemNum)
-  val icache_rom = Mem(UInt(InstBus bits),initialContent = init_array)
+  val ram_0 = Mem(UInt(ByteWidth bits),InstMemNum/4)  // 每个ram模块内含8bit*DataMemNum的数据，则四个ram并行共有32bit数据
+  val ram_1 = Mem(UInt(ByteWidth bits),InstMemNum/4)
+  val ram_2 = Mem(UInt(ByteWidth bits),InstMemNum/4)
+  val ram_3 = Mem(UInt(ByteWidth bits),InstMemNum/4)
+
   when( io.icache_entry.valid === False){
     io.icache_entry.data := 0
     io.icache_rdy := False
   }.otherwise{
-    io.icache_entry.data := icache_rom(io.icache_entry.addr(InstMemNumLog2+1 downto 2))  // 所以取pc_addr具有32bits，而ROM储存区条目只有InstMemNum（2^17=131071)
+    io.icache_entry.data := ram_3(io.icache_entry.addr(InstMemNumLog2-1 downto 2)) @@
+      ram_2(io.icache_entry.addr(InstMemNumLog2-1 downto 2)) @@
+      ram_1(io.icache_entry.addr(InstMemNumLog2-1 downto 2)) @@
+      ram_0(io.icache_entry.addr(InstMemNumLog2-1 downto 2))
+    //io.icache_entry.data := icache_rom(io.icache_entry.addr(InstMemNumLog2+1 downto 2))  // 所以取pc_addr具有32bits，而ROM储存区条目只有InstMemNum（2^17=131071)
     // 所以取pc_addr[16:0]，又因为pc_addr每一clk加2^2=4，相当于低端的2位没有作用
     // 或者说，等同于pc_addr右移2bit，故而取pc_addr[18:2]即可反映Ori指令下的地址
     io.icache_rdy := True
   }
+
+  // 读内存操作,mem访存请求读取内存时，内存一次提供字，由mem决定取字的字节/半字/全字
+  when(io.icache_read_entry.re === True){
+    // 取对应地址（去掉后两位，即对齐4字节，共取16bit地址）
+    //io.icache_read_entry.rdata := icache_rom(io.icache_read_entry.raddr(InstMemNumLog2+1 downto 2))
+    io.icache_read_entry.rdata := ram_3(io.icache_read_entry.raddr(InstMemNumLog2-1 downto 2)) @@
+      ram_2(io.icache_read_entry.raddr(InstMemNumLog2-1 downto 2)) @@
+      ram_1(io.icache_read_entry.raddr(InstMemNumLog2-1 downto 2)) @@
+      ram_0(io.icache_read_entry.raddr(InstMemNumLog2-1 downto 2))
+  }.otherwise{
+      io.icache_read_entry.rdata := 0
+    }
+
 }
 
 class dcache extends Component with Global_parameter with Interface_MS {
@@ -485,18 +511,18 @@ class dcache extends Component with Global_parameter with Interface_MS {
     val dcache_read_entry = slave(dcache_read_interface(CoreConfig()))
   }
   // todo
-  val ram_0 = Mem(UInt(ByteWidth bits),DataMemNum)  // 每个ram模块内含8bit*DataMemNum的数据，则四个ram并行共有32bit数据
-  val ram_1 = Mem(UInt(ByteWidth bits),DataMemNum)
-  val ram_2 = Mem(UInt(ByteWidth bits),DataMemNum)
-  val ram_3 = Mem(UInt(ByteWidth bits),DataMemNum)
+  val ram_0 = Mem(UInt(ByteWidth bits),DataMemNum/4)  // 每个ram模块内含8bit*DataMemNum的数据，则四个ram并行共有32bit数据
+  val ram_1 = Mem(UInt(ByteWidth bits),DataMemNum/4)
+  val ram_2 = Mem(UInt(ByteWidth bits),DataMemNum/4)
+  val ram_3 = Mem(UInt(ByteWidth bits),DataMemNum/4)
 
   // 读内存操作,mem访存请求读取内存时，内存一次提供字，由mem决定取字的字节/半字/全字
     when(io.dcache_read_entry.re === True){
       // 取对应地址（去掉后两位，即对齐4字节，共取16bit地址）
-      io.dcache_read_entry.rdata := ram_3(io.dcache_read_entry.raddr(DataMemNumLog2+1 downto 2)) @@
-        ram_2(io.dcache_read_entry.raddr(DataMemNumLog2+1 downto 2)) @@
-        ram_1(io.dcache_read_entry.raddr(DataMemNumLog2+1 downto 2)) @@
-        ram_0(io.dcache_read_entry.raddr(DataMemNumLog2+1 downto 2))
+      io.dcache_read_entry.rdata := ram_3(io.dcache_read_entry.raddr(DataMemNumLog2-1 downto 2)) @@
+        ram_2(io.dcache_read_entry.raddr(DataMemNumLog2-1 downto 2)) @@
+        ram_1(io.dcache_read_entry.raddr(DataMemNumLog2-1 downto 2)) @@
+        ram_0(io.dcache_read_entry.raddr(DataMemNumLog2-1 downto 2))
     }
       .otherwise{
         io.dcache_read_entry.rdata := 0
@@ -518,7 +544,7 @@ class dcache extends Component with Global_parameter with Interface_MS {
   )
   */
 
-  val r_ramAddr = io.dcache_write_entry.waddr(DataMemNumLog2+1 downto 2)  // 舍去原始地址后两位，对齐4的倍数
+  val r_ramAddr = io.dcache_write_entry.waddr(DataMemNumLog2-1 downto 2)  // 舍去原始地址后两位，对齐4的倍数
   val r_ram0En = io.dcache_write_entry.sel(0)
   val r_ram1En = io.dcache_write_entry.sel(1)
   val r_ram2En = io.dcache_write_entry.sel(2)
@@ -2061,7 +2087,12 @@ class regfile_wb extends Component with Global_parameter with Interface_MS {
     val clk = in Bool()
     val rstn = in Bool()
     val flush = in Bool()
-    val write_interface = slave(wregfile_interface(CoreConfig()))  // from commit stage
+    val write_interface_alu = slave(wregfile_interface(CoreConfig()))  // from commit stage
+    val write_interface_mul1 = slave(wregfile_interface(CoreConfig()))  // from commit stage
+    val write_interface_mul2 = slave(wregfile_interface(CoreConfig()))  // from commit stage
+    val write_interface_divu = slave(wregfile_interface(CoreConfig()))  // from commit stage
+    val write_interface_bju = slave(wregfile_interface(CoreConfig()))  // from commit stage
+    val write_interface_lsu = slave(wregfile_interface(CoreConfig()))  // from commit stage
     //val readop_ctrl = in Vec(Bits(2 bit),REG_NUM) // from scb
     val writeop_entry = in Vec(UInt(RegDataBus bits),REG_NUM) // from regfile
     val readop_entry = out Vec(UInt(RegDataBus bits),REG_NUM) // to scb
@@ -2070,13 +2101,52 @@ class regfile_wb extends Component with Global_parameter with Interface_MS {
   }
   val REG_FILE = Vec(Reg(UInt(RegDataBus bits)) init(0),REG_NUM)
   io.readop_entry := REG_FILE
-  when(io.flush){
+  val flush_d1 = Reg(Bool()) init(False)
+  flush_d1 := io.flush
+  val flush_wide = flush_d1 | io.flush
+  //when(io.flush){
+  when(flush_wide){ // todo: 为了解决flush时regfile在更新，regfile_wb backup的是旧的值；// 可以再拓宽成scb里的flush_hold
     for(i <- 0 until REG_NUM){
       REG_FILE(i) := io.writeop_entry(i)
     }
-  } .elsewhen(io.write_interface.reg_wen){
-    REG_FILE(io.write_interface.reg_waddr) := io.write_interface.reg_wdata
-  } .otherwise{ }
+  } .otherwise{
+    for(i <- 0 until REG_NUM){
+      when(io.write_interface_alu.reg_wen && io.write_interface_alu.reg_waddr === i){
+        REG_FILE(i) := io.write_interface_alu.reg_wdata
+      } .elsewhen(io.write_interface_mul1.reg_wen && io.write_interface_mul1.reg_waddr === i){
+        REG_FILE(i) := io.write_interface_mul1.reg_wdata
+      } .elsewhen(io.write_interface_mul2.reg_wen && io.write_interface_mul2.reg_waddr === i){
+        REG_FILE(i) := io.write_interface_mul2.reg_wdata
+      } .elsewhen(io.write_interface_divu.reg_wen && io.write_interface_divu.reg_waddr === i){
+        REG_FILE(i) := io.write_interface_divu.reg_wdata
+      } .elsewhen(io.write_interface_bju.reg_wen && io.write_interface_bju.reg_waddr === i){
+        REG_FILE(i) := io.write_interface_bju.reg_wdata
+      } .elsewhen(io.write_interface_lsu.reg_wen && io.write_interface_lsu.reg_waddr === i){
+        REG_FILE(i) := io.write_interface_lsu.reg_wdata
+      } .otherwise{  }
+    }
+
+/*
+    when(io.write_interface_alu.reg_wen){
+      REG_FILE(io.write_interface_alu.reg_waddr) := io.write_interface_alu.reg_wdata
+    } .otherwise{ }
+    when(io.write_interface_mul1.reg_wen){
+      REG_FILE(io.write_interface_mul1.reg_waddr) := io.write_interface_mul1.reg_wdata
+    } .otherwise{ }
+    when(io.write_interface_mul2.reg_wen){
+      REG_FILE(io.write_interface_mul2.reg_waddr) := io.write_interface_mul2.reg_wdata
+    } .otherwise{ }
+    when(io.write_interface_divu.reg_wen){
+      REG_FILE(io.write_interface_divu.reg_waddr) := io.write_interface_divu.reg_wdata
+    } .otherwise{ }
+    when(io.write_interface_bju.reg_wen){
+      REG_FILE(io.write_interface_bju.reg_waddr) := io.write_interface_bju.reg_wdata
+    } .otherwise{ }
+    when(io.write_interface_lsu.reg_wen){
+      REG_FILE(io.write_interface_lsu.reg_waddr) := io.write_interface_lsu.reg_wdata
+    } .otherwise{ }
+    */
+  }
 }
 
 class csr_regfile extends Component with Global_parameter with Interface_MS {
@@ -2143,6 +2213,7 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
     val rstn = in Bool()
     val icache_rdy = in Bool()  // from top
     val icache_entry = master(icache_interface(CoreConfig())) // to top
+    val icache_read_entry = master(icache_read_interface(CoreConfig()))
     val dcache_rdy = in Bool()  // from top
     val dcache_write_entry = master(dcache_write_interface(CoreConfig())) // to top
     val dcache_read_entry = master(dcache_read_interface(CoreConfig())) // to top
@@ -2184,6 +2255,9 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   val csr_regfile_wb = new csr_regfile_wb
   val exc_arbit = new exc_arbit
 
+  // others
+  val mmu = new mmu
+
 
   // 建立连接关系 //
   pc_gen.io.clk := io.clk
@@ -2216,8 +2290,12 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   bht.io.pc_valid := pc_gen.io.pc_valid
   //pc_gen.io.scb_readop_wb_i := regfile_wb.io.readop_entry
 
-  //instr_realign.io.icache_entry connect mmu.io.icache_entry // todo with MMU
-  instr_realign.io.icache_entry connect io.icache_entry
+  instr_realign.io.icache_entry connect mmu.io.s_icache_entry // todo with MMU
+  //instr_realign.io.icache_entry connect io.icache_entry
+  mmu.io.m_icache_entry connect io.icache_entry
+  mmu.io.m_icache_read_entry connect io.icache_read_entry
+  mmu.io.m_dcache_read_interface connect io.dcache_read_entry
+  mmu.io.m_dcache_write_interface connect io.dcache_write_entry
   //instr_realign.io.icache_rdy := io.icache_rdy
   instr_realign.io.icache_rdy := ~instr_queue.io.stall_push
   instr_realign.io.pc := pc_gen.io.pc
@@ -2250,6 +2328,7 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   div_unit.io.rstn := io.rstn
   bju_unit.io.clk := io.clk
   bju_unit.io.rstn := io.rstn
+  bju_unit.io.flush_mispredict := commit.io.flush_mis_predict
   lsu_unit.io.clk := io.clk
   lsu_unit.io.rstn := io.rstn
   csr_unit.io.clk := io.clk
@@ -2258,11 +2337,14 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   nop_unit.io.rstn := io.rstn
   wb.io.clk := io.clk
   wb.io.rstn := io.rstn
+  wb.io.flush := commit.io.flush
   commit.io.clk := io.clk
   commit.io.rstn := io.rstn
   exc_arbit.io.clk := io.clk
   exc_arbit.io.rstn := io.rstn
   regfile_wb.io.flush := commit.io.flush
+  mmu.io.clk := io.clk
+  mmu.io.rstn := io.rstn
 
   //instr_queue.io.if_intr_entry connect instr_realign.io.instr_realign
   instr_queue.io.if_intr_entry.pc := pc_gen.io.pc
@@ -2300,7 +2382,7 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   //id2issue.io.id2issue_dec_entry connect lsu_unit.io.dec_entry
   scoreboard.io.lsu_oprand_entry connect lsu_unit.io.ex_operand_entry
   scoreboard.io.lsu_ex_entry connect lsu_unit.io.lsu_ex_entry
-  lsu_unit.io.rd_dcache_interfacec connect io.dcache_read_entry
+  lsu_unit.io.read_interfacec connect mmu.io.s_memory_read_interface
   // todo with csr
   //id2issue.io.id2issue_dec_entry connect csr_unit.io.dec_entry
   scoreboard.io.csr_oprand_entry connect csr_unit.io.ex_operand_entry
@@ -2327,7 +2409,13 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
 
   scoreboard.io.wb_ras_entry connect ras.io.ex_commit_entry
 
-  wb.io.wb_regfile_interface connect regfile_wb.io.write_interface
+  wb.io.wb_regfile_interface_alu connect regfile_wb.io.write_interface_alu
+  wb.io.wb_regfile_interface_mul1 connect regfile_wb.io.write_interface_mul1
+  wb.io.wb_regfile_interface_mul2 connect regfile_wb.io.write_interface_mul2
+  wb.io.wb_regfile_interface_divu connect regfile_wb.io.write_interface_divu
+  wb.io.wb_regfile_interface_bju connect regfile_wb.io.write_interface_bju
+  wb.io.wb_regfile_interface_lsu connect regfile_wb.io.write_interface_lsu
+
   regfile_wb.io.writeop_entry := regfile.io.readop_entry
   //wb.io.wb_csr_interface connect csr_regfile_wb.io.write_interface
   wb.io.head_ptr := scoreboard.io.head_ptr
@@ -2337,8 +2425,8 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
 
   commit.io.wb_regfile_interface connect regfile.io.write_interface
   commit.io.wb_csr_interface connect csr_regfile.io.write_interface // todo
-  //commit.io.wb_dacahe_interfacec connect mmu.io.dcache_store_interface // todo with MMU
-  commit.io.wb_dacahe_interfacec connect io.dcache_write_entry
+  commit.io.wb_dacahe_interfacec connect mmu.io.s_dcache_write_interface // todo with MMU
+  //commit.io.wb_dacahe_interfacec connect io.dcache_write_entry
   commit.io.bju_mis_predict connect bju_unit.io.bju_mispredict
   commit.io.exc_entry connect exc_arbit.io.exc_entry
   commit.io.csr_exc_entry connect csr_regfile.io.csr_exc_entry  // todo
@@ -2360,6 +2448,7 @@ class cutecore extends Component {
   cutecore_logic.io.clk := io.clk
   cutecore_logic.io.rstn := io.rstn
   cutecore_logic.io.icache_entry connect icache_inst.io.icache_entry
+  cutecore_logic.io.icache_read_entry connect icache_inst.io.icache_read_entry
   cutecore_logic.io.dcache_write_entry connect dcache_inst.io.dcache_write_entry
   cutecore_logic.io.dcache_read_entry connect dcache_inst.io.dcache_read_entry
   cutecore_logic.io.icache_rdy := icache_inst.io.icache_rdy
@@ -2733,6 +2822,19 @@ trait Interface_MS extends Global_parameter {
     }
   }
 
+  // icache read interface
+  case class icache_read_interface(config: CoreConfig) extends Bundle with IMasterSlave {
+    val raddr = UInt(InstAddrBus bits)
+    val re = Bool()
+    val rdata = UInt(InstBus bits)
+    val sel = UInt(MemSelBus bits)
+
+    override def asMaster(): Unit = {
+      out(raddr,re,sel)
+      in(rdata)
+    }
+  }
+
   // dcache interface
   case class dcache_interface(config: CoreConfig) extends Bundle with IMasterSlave {
     val waddr = UInt(DataAddrBus bits)
@@ -2745,6 +2847,19 @@ trait Interface_MS extends Global_parameter {
 
     override def asMaster(): Unit = {
       out(waddr,we,wdata,raddr,re,sel)
+      in(rdata)
+    }
+  }
+
+  // memory read interface
+  case class memory_read_interface(config: CoreConfig) extends Bundle with IMasterSlave {
+    val raddr = UInt(DataAddrBus bits)
+    val re = Bool()
+    val rdata = UInt(DataBus bits)
+    val sel = UInt(MemSelBus bits)
+
+    override def asMaster(): Unit = {
+      out(raddr,re,sel)
       in(rdata)
     }
   }
@@ -2799,11 +2914,12 @@ trait Global_parameter {
   val CSRDataBus = 32
   val CSR_NUM = 16  //理论上最多可以支持2^12=4096个csr寄存器
   //val CSRValidAddrBus = 5 // 必须是$clog2(CSR_NUM)
-
-  val InstMemNum = 8192  // ROM实际大小：64KB
-  val InstMemNumLog2 = 13  // ROM实际使用的地址宽度,即 2^16=65536，PC计数为32bits，实际上对于ROM储存区只用到了16bits即可
-  val DataMemNum    = 1024  // // 单个RAM实际大小：64KB
-  val DataMemNumLog2  = 10  // 单个RAM实际使用的地址宽度,即 2^16=65536
+  val InstStartAddr = 0 // linker todo
+  val DataStartAddr = 65536 // linker todo
+  val InstMemNum = 65536  // ROM实际大小：64KB
+  val InstMemNumLog2 = 16  // ROM实际使用的地址宽度,即 2^16=65536，PC计数为32bits，实际上对于ROM储存区只用到了16bits即可
+  val DataMemNum    = 65536  // // 单个RAM实际大小：64KB
+  val DataMemNumLog2  = 16  // 单个RAM实际使用的地址宽度,即 2^16=65536
   val ByteWidth       = 8
   val MemSelBus = 4 // mem的字节选择宽度（0000-1111）
   val MemSelZero = U"4'b0000"  // 内存字节的初始化选择为第0位

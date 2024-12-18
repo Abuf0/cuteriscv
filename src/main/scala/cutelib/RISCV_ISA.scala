@@ -173,11 +173,11 @@ object RISCV_ISA {
 
   object CSR{
     // todo 最好做define //
-    def MTVEC     = 0x1
-    def MEPC      = 0x2
-    def MCAUSE    = 0x3
-    def MTVAL     = 0x4
-    def MSTATUS   = 0x5
+    def MTVEC     = 0x5
+    def MEPC      = 0x1
+    def MCAUSE    = 0x2
+    def MTVAL     = 0x3
+    def MSTATUS   = 0x0
 
     def MVENDORID = 0xF11 // MRO Vendor ID.
     def MARCHID   = 0xF12 // MRO Architecture ID.

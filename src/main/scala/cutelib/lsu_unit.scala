@@ -78,13 +78,13 @@ case class lsu_unit() extends Component with Global_parameter with Interface_MS 
   io.lsu_ex_entry.result := load_result // from dcache
 
   io.read_interfacec.re := load_rden
-  io.read_interfacec.raddr := load_raddr
+  io.read_interfacec.raddr := load_raddr_align
   io.read_interfacec.sel := U(load_byte)
   val dcache_rdata = io.read_interfacec.rdata
   val dcache_rdata_real = UInt(DataBus bits)
 
   //io.toload_addr := load_raddr_align
-  io.toload_addr := load_raddr  // fix sfind
+  io.toload_addr := load_raddr_align  // fix sfind
   /*
   when(io.toload_hit){ // 如果wb buffer中有待提交的SW指令，且写地址==读地址，则forwarding（类似于store buffer）
     dcache_rdata_real := io.toload_data

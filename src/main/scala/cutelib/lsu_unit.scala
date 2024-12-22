@@ -12,7 +12,7 @@ case class lsu_unit() extends Component with Global_parameter with Interface_MS 
     val lsu_ex_entry = master(lsu_res_entry(CoreConfig()))  // to commit
     val read_interfacec = master(memory_read_interface(CoreConfig()))  // to dcache/icache
     val toload_addr = out UInt(DataAddrBus bits)  // to wb
-    val toload_hit = in Bool()
+    val toload_hit = in UInt(4 bits)
     val toload_data = in UInt(DataBus bits)
     // todo with lsu //
     val lsu_ack = out Bool()  // to scb
@@ -83,12 +83,43 @@ case class lsu_unit() extends Component with Global_parameter with Interface_MS 
   val dcache_rdata = io.read_interfacec.rdata
   val dcache_rdata_real = UInt(DataBus bits)
 
-  io.toload_addr := load_raddr_align
+  //io.toload_addr := load_raddr_align
+  io.toload_addr := load_raddr  // fix sfind
+  /*
   when(io.toload_hit){ // 如果wb buffer中有待提交的SW指令，且写地址==读地址，则forwarding（类似于store buffer）
     dcache_rdata_real := io.toload_data
   } .otherwise{
     dcache_rdata_real := dcache_rdata
   }
+   */
+
+  val dcache_rdata_real_0 = UInt(8 bits)
+  val dcache_rdata_real_1 = UInt(8 bits)
+  val dcache_rdata_real_2 = UInt(8 bits)
+  val dcache_rdata_real_3 = UInt(8 bits)
+
+  when(io.toload_hit(0)){
+    dcache_rdata_real_0 := io.toload_data(7 downto 0)
+  } .otherwise{
+    dcache_rdata_real_0 := dcache_rdata(7 downto 0)
+  }
+  when(io.toload_hit(1)){
+    dcache_rdata_real_1 := io.toload_data(15 downto 8)
+  } .otherwise{
+    dcache_rdata_real_1 := dcache_rdata(15 downto 8)
+  }
+  when(io.toload_hit(2)){
+    dcache_rdata_real_2 := io.toload_data(23 downto 16)
+  } .otherwise{
+    dcache_rdata_real_2 := dcache_rdata(23 downto 16)
+  }
+  when(io.toload_hit(3)){
+    dcache_rdata_real_3 := io.toload_data(31 downto 24)
+  } .otherwise{
+    dcache_rdata_real_3 := dcache_rdata(31 downto 24)
+  }
+
+  dcache_rdata_real := dcache_rdata_real_3 @@ dcache_rdata_real_2 @@ dcache_rdata_real_1 @@ dcache_rdata_real_0
 
   when(io.ex_operand_entry.dec_valid){
     io.ex_operand_entry.busy := True
@@ -149,7 +180,7 @@ case class lsu_unit() extends Component with Global_parameter with Interface_MS 
           is(U"10") {
             load_byte := B"1100"
             load_sign := True
-            load_result := U(DataBus bits, default -> dcache_rdata_real(23), (7 downto 0) -> dcache_rdata_real(23 downto 16))
+            load_result := U(DataBus bits, default -> dcache_rdata_real(31), (15 downto 0) -> dcache_rdata_real(31 downto 16))
           }
           /*
           is(U"11") { // todo
@@ -218,7 +249,7 @@ case class lsu_unit() extends Component with Global_parameter with Interface_MS 
           is(U"10") {
             load_byte := B"1100"
             load_sign := True
-            load_result := U(DataBus bits, default -> False, (7 downto 0) -> dcache_rdata_real(23 downto 16))
+            load_result := U(DataBus bits, default -> False, (15 downto 0) -> dcache_rdata_real(31 downto 16))
           }
           /*
           is(U"11") { // todo

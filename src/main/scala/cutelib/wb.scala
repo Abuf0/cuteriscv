@@ -24,12 +24,15 @@ case class wb() extends Component with Global_parameter with Interface_MS{
     val wb_regfile_interface_bju = master(wregfile_interface(CoreConfig()))  // to regfile
     val wb_regfile_interface_lsu = master(wregfile_interface(CoreConfig()))  // to regfile
 
+    val wb_dcache_interface_lsu = master(dcache_write_interface(CoreConfig())) // to store buffer
+    //val trans_id_lsu = out UInt(SCB_ID_WIDTH bits)
+
     val wb_csr_interface = master(wcsr_interface(CoreConfig())) // to csr regfile
     val wb_scb_entry = master(commit_entry(CoreConfig()))  // to scb
     val head_ptr = in UInt(SCB_INSTR_WIDTH bits) // from scb
-    val toload_addr = in UInt(DataAddrBus bits)  // to wb
-    val toload_hit = out Bool()
-    val toload_data = out UInt(DataBus bits)
+    //val toload_addr = in UInt(DataAddrBus bits)  // to wb
+    //val toload_hit = out UInt(4 bits)
+    //val toload_data = out UInt(DataBus bits)
   }
   val INSTR_TAB = Vec(Reg(UInt(InstBus bits)) init(0), SCB_INSTR_DEEPTH)
   val PC_TAB = Vec(Reg(UInt(InstAddrBus bits)) init(0), SCB_INSTR_DEEPTH)
@@ -56,10 +59,92 @@ case class wb() extends Component with Global_parameter with Interface_MS{
   val DEC_VLD_TAB = Vec(Reg(Bool()) init(False), SCB_INSTR_DEEPTH)
   val VLD_FLAG_TAB = Vec(Reg(Bool()) init(False), SCB_INSTR_DEEPTH)
 
-  val (toload_hit, toload_index): (Bool, UInt) = DCACHE_WADDR_TAB.sFindFirst(_===io.toload_addr)
-  io.toload_hit := toload_hit && VLD_FLAG_TAB(toload_index) // todo
-  io.toload_data := DCACHE_WDATA_TAB(toload_index)
+  /*
+  // todo : 看起来必须加个store buffer！！！！！！！！！！！！！
+  //val DCACHE_WADDR_TAB_VER = Vec(UInt(DataAddrBus bits), SCB_INSTR_DEEPTH)
+  val DCACHE_WTAB_VER = Vec(UInt(DataAddrBus+5 bits), SCB_INSTR_DEEPTH)
+  for (i <- 0 until SCB_INSTR_DEEPTH) {
+    DCACHE_WTAB_VER(i) := DCACHE_WADDR_TAB(SCB_INSTR_DEEPTH-1-i) @@ U(DCACHE_WSEL_TAB(SCB_INSTR_DEEPTH-1-i)) @@ U(B(VLD_FLAG_TAB(SCB_INSTR_DEEPTH-1-i)))
+  }
+  //val (toload_hit, toload_index): (Bool, UInt) = DCACHE_WADDR_TAB.sFindFirst(_===io.toload_addr)
+  val (toload_hit_w, toload_w_index_ver): (Bool, UInt) = DCACHE_WTAB_VER.sFindFirst(_===(io.toload_addr @@ U"1111") @@ U"1")  // sw
+  val (toload_hit_h, toload_h_index_ver): (Bool, UInt) = DCACHE_WTAB_VER.sFindFirst(_===(io.toload_addr @@ U"1100") @@ U"1")  // sh
+  val (toload_hit_l, toload_l_index_ver): (Bool, UInt) = DCACHE_WTAB_VER.sFindFirst(_===(io.toload_addr @@ U"0011") @@ U"1")  // sh
+  val (toload_hit_b, toload_b_index_ver): (Bool, UInt) = DCACHE_WTAB_VER.sFindFirst(_===(io.toload_addr @@ U"0001") @@ U"1")  // sb
+
+  val toload_hit_0 = toload_hit_w || toload_hit_l || toload_hit_b
+  val toload_0_index_ver = UInt(SCB_INSTR_WIDTH bits)
+
+  val toload_hit_1 = toload_hit_w || toload_hit_l
+  val toload_1_index_ver = UInt(SCB_INSTR_WIDTH bits)
+  when(toload_hit_w && toload_hit_l){
+    when(toload_w_index_ver < toload_l_index_ver){
+      toload_1_index_ver := toload_w_index_ver
+      toload_0_index_ver := toload_w_index_ver
+      when(toload_hit_b && (toload_b_index_ver < toload_w_index_ver)){
+        toload_0_index_ver := toload_b_index_ver
+      }
+    } .otherwise{
+      toload_1_index_ver := toload_l_index_ver
+      toload_0_index_ver := toload_l_index_ver
+      when(toload_hit_b && (toload_b_index_ver < toload_l_index_ver)){
+        toload_0_index_ver := toload_b_index_ver
+      }
+    }
+  } .elsewhen(toload_hit_w){
+    toload_1_index_ver := toload_w_index_ver
+    toload_0_index_ver := toload_w_index_ver
+    when(toload_hit_b && (toload_b_index_ver < toload_w_index_ver)){
+      toload_0_index_ver := toload_b_index_ver
+    }
+  } .elsewhen(toload_hit_l){
+    toload_1_index_ver := toload_l_index_ver
+    toload_0_index_ver := toload_l_index_ver
+    when(toload_hit_b && (toload_b_index_ver < toload_l_index_ver)){
+      toload_0_index_ver := toload_b_index_ver
+    }
+  } .otherwise{
+    toload_1_index_ver := 0
+    toload_0_index_ver := 0
+  }
+  val toload_hit_2 = toload_hit_w || toload_hit_h
+  val toload_2_index_ver = UInt(SCB_INSTR_WIDTH bits)
+  when(toload_hit_w && toload_hit_h){
+    when(toload_w_index_ver < toload_h_index_ver){
+      toload_2_index_ver := toload_w_index_ver
+    } .otherwise{
+      toload_2_index_ver := toload_h_index_ver
+    }
+  } .elsewhen(toload_hit_w){
+    toload_2_index_ver := toload_w_index_ver
+  } .elsewhen(toload_hit_h){
+    toload_2_index_ver := toload_h_index_ver
+  } .otherwise{
+    toload_2_index_ver := 0
+  }
+
+  val toload_hit_3 = toload_hit_2
+  val toload_3_index_ver = toload_2_index_ver
+
+
+  //val toload_index = SCB_INSTR_DEEPTH-1-toload_index_ver
+  val toload_index_0 = SCB_INSTR_DEEPTH-1-toload_0_index_ver
+  val toload_index_1 = SCB_INSTR_DEEPTH-1-toload_1_index_ver
+  val toload_index_2 = SCB_INSTR_DEEPTH-1-toload_2_index_ver
+  val toload_index_3 = SCB_INSTR_DEEPTH-1-toload_3_index_ver
+
+  val toload_byte_0 = DCACHE_WDATA_TAB(toload_index_0)(7 downto 0)
+  val toload_byte_1 = DCACHE_WDATA_TAB(toload_index_1)(15 downto 8)
+  val toload_byte_2 = DCACHE_WDATA_TAB(toload_index_2)(23 downto 16)
+  val toload_byte_3 = DCACHE_WDATA_TAB(toload_index_3)(31 downto 24)
+
+
+  io.toload_hit := (toload_hit_3 && VLD_FLAG_TAB(toload_index_3)).asUInt @@ (toload_hit_2 && VLD_FLAG_TAB(toload_index_2)).asUInt @@ (toload_hit_1 && VLD_FLAG_TAB(toload_index_1)).asUInt @@ (toload_hit_0 && VLD_FLAG_TAB(toload_index_0)) // todo
+  //io.toload_data := DCACHE_WDATA_TAB(toload_index)
+  io.toload_data := toload_byte_3 @@ toload_byte_2 @@ toload_byte_1 @@ toload_byte_0
   // todo
+*/
+
   when(io.flush === True) {
       for(i <- 0 until SCB_INSTR_DEEPTH){
         VLD_FLAG_TAB(i) := False
@@ -358,10 +443,20 @@ case class wb() extends Component with Global_parameter with Interface_MS{
     io.wb_regfile_interface_lsu.reg_wen   := io.lsu_ex_wb_entry.reg_wb_en
     io.wb_regfile_interface_lsu.reg_waddr := io.lsu_ex_wb_entry.reg_wb_addr
     io.wb_regfile_interface_lsu.reg_wdata := io.lsu_ex_wb_entry.reg_wb_data
+    io.wb_dcache_interface_lsu.we         := io.lsu_ex_wb_entry.dcache_wb_en
+    io.wb_dcache_interface_lsu.waddr      := io.lsu_ex_wb_entry.dcache_wb_addr
+    io.wb_dcache_interface_lsu.sel        := U(io.lsu_ex_wb_entry.dcache_wb_sel)
+    io.wb_dcache_interface_lsu.wdata      := io.lsu_ex_wb_entry.dcache_wb_data
+    //io.trans_id_lsu                       := io.lsu_ex_wb_entry.trans_id
   }.otherwise{
     io.wb_regfile_interface_lsu.reg_wen   := False
     io.wb_regfile_interface_lsu.reg_waddr := 0
     io.wb_regfile_interface_lsu.reg_wdata := 0
+    io.wb_dcache_interface_lsu.we         := False
+    io.wb_dcache_interface_lsu.waddr      := 0
+    io.wb_dcache_interface_lsu.sel        := U"0000"
+    io.wb_dcache_interface_lsu.wdata      := 0
+    //io.trans_id_lsu                       := SCB_INSTR_DEEPTH
   }
 
   when(io.csr_ex_wb_entry.commit_req){

@@ -25,6 +25,7 @@ case class commit() extends Component with Global_parameter with Interface_MS{
     val plic_int_entry = slave(int_entry(CoreConfig())) // 外部中断源，from PLIC, sync-pulse
     val clint_int_entry = slave(int_entry(CoreConfig()))  // 软件中断和定时器中断，from CLINT, sync-pulse
     val csr_exc_entry = master(csr_except_entry(CoreConfig()))  // 发生异常时，同时更新异常相关的特殊csr寄存器
+    //val commit_id = out UInt(SCB_ID_WIDTH bits) // to store buffer
   }
 
   // 异常列表+杂项 //
@@ -140,6 +141,8 @@ case class commit() extends Component with Global_parameter with Interface_MS{
     //io.wb_dacahe_interfacec.re := io.ex_commit_entry.dcache_rd_en
     //io.wb_dacahe_interfacec.raddr := io.ex_commit_entry.dcache_rd_addr  // todo delete
     io.wb_dacahe_interfacec.sel := U(io.ex_commit_entry.dcache_wb_sel)
+    //io.commit_id := io.ex_commit_entry.trans_id
+
     //io.ex_commit_entry.dcache_rd_data := io.wb_dacahe_interfacec.rdata
   }.otherwise{
     io.wb_regfile_interface.reg_wen := False
@@ -154,6 +157,8 @@ case class commit() extends Component with Global_parameter with Interface_MS{
     //io.wb_dacahe_interfacec.re := False
     //io.wb_dacahe_interfacec.raddr := 0
     io.wb_dacahe_interfacec.sel := U"1111"
+    //io.commit_id := SCB_INSTR_DEEPTH
+
     //io.ex_commit_entry.dcache_rd_data := 0
   }
 

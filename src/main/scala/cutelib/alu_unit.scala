@@ -15,6 +15,7 @@ case class alu_unit() extends Component with Global_parameter with Interface_MS 
   val rs2 = io.ex_operand_entry.rs2_data
   val imm = io.ex_operand_entry.imm
   val shamt = io.ex_operand_entry.instr(24 downto 20)
+  val rs2_shift = rs2(4 downto 0) // for rv32ui [rv64:(5 downto 0)]
   val pc = io.ex_operand_entry.pc
   val alu_res_logic = UInt(RegDataBus bits)
   val alu_res_shift = UInt(RegDataBus bits)
@@ -81,10 +82,12 @@ case class alu_unit() extends Component with Global_parameter with Interface_MS 
       is(OP_TYPE.OP_SHIFT) {
         switch(io.ex_operand_entry.instr) {
           is(SLL) {
-            alu_res_shift := rs1 |<< rs2
+            //alu_res_shift := rs1 |<< rs2
+            alu_res_shift := rs1 |<< rs2_shift  // fix rv32ui
           }
           is(SRL) {
-            alu_res_shift := rs1 |>> rs2
+            //alu_res_shift := rs1 |>> rs2
+            alu_res_shift := rs1 |>> rs2_shift  // fix rv32ui
           }
           is(SLLI) {
             alu_res_shift := rs1 |<< shamt
@@ -93,10 +96,11 @@ case class alu_unit() extends Component with Global_parameter with Interface_MS 
             alu_res_shift := rs1 |>> shamt
           }
           is(SRA) {
-            alu_res_shift := rs1 >> rs2
+            //alu_res_shift := U(S(rs1) >> rs2)  // fix shift
+            alu_res_shift := U(S(rs1) >> rs2_shift)  // fix shift + rv32ui
           }
           is(SRAI) {
-            alu_res_shift := rs1 >> shamt
+            alu_res_shift := U(S(rs1) >> shamt)  // fix shift
           }
           is(SLT) {
             alu_res_shift := U(S(rs1) < S(rs2)).resized

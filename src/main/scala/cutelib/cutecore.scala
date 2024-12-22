@@ -388,6 +388,7 @@ class icache extends Component with Global_parameter with Interface_MS {
     val icache_rdy = out Bool()  // from instr_queue
     val icache_entry = slave(icache_interface(CoreConfig())) // to instr_realign
     val icache_read_entry = slave(icache_read_interface(CoreConfig()))
+    val icache_write_entry = slave(icache_write_interface(CoreConfig()))
   }
   // todo
   /*
@@ -500,6 +501,38 @@ class icache extends Component with Global_parameter with Interface_MS {
       io.icache_read_entry.rdata := 0
     }
 
+
+  val r_ramAddr = io.icache_write_entry.waddr(DataMemNumLog2-1 downto 2)  // 舍去原始地址后两位，对齐4的倍数
+  val r_ram0En = io.icache_write_entry.sel(0)
+  val r_ram1En = io.icache_write_entry.sel(1)
+  val r_ram2En = io.icache_write_entry.sel(2)
+  val r_ram3En = io.icache_write_entry.sel(3)
+  val r_data0 = io.icache_write_entry.wdata(7 downto 0)
+  val r_data1 = io.icache_write_entry.wdata(15 downto 8)
+  val r_data2 = io.icache_write_entry.wdata(23 downto 16)
+  val r_data3 = io.icache_write_entry.wdata(31 downto 24)
+
+  //val areaClk = new ClockingArea(wClockDomain) {
+  ram_0.write(
+    address = r_ramAddr,
+    data = r_data0,
+    enable = r_ram0En && (io.icache_write_entry.we === True)
+  )
+  ram_1.write(
+    address = r_ramAddr,
+    data = r_data1,
+    enable = r_ram1En && (io.icache_write_entry.we === True)
+  )
+  ram_2.write(
+    address = r_ramAddr,
+    data = r_data2,
+    enable = r_ram2En && (io.icache_write_entry.we === True)
+  )
+  ram_3.write(
+    address = r_ramAddr,
+    data = r_data3,
+    enable = r_ram3En && (io.icache_write_entry.we === True)
+  )
 }
 
 class dcache extends Component with Global_parameter with Interface_MS {
@@ -2214,6 +2247,7 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
     val icache_rdy = in Bool()  // from top
     val icache_entry = master(icache_interface(CoreConfig())) // to top
     val icache_read_entry = master(icache_read_interface(CoreConfig()))
+    val icache_write_entry = master(dcache_write_interface(CoreConfig())) // to top
     val dcache_rdy = in Bool()  // from top
     val dcache_write_entry = master(dcache_write_interface(CoreConfig())) // to top
     val dcache_read_entry = master(dcache_read_interface(CoreConfig())) // to top
@@ -2253,6 +2287,7 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   val csr_regfile = new csr_regfile
   val regfile_wb = new regfile_wb
   val csr_regfile_wb = new csr_regfile_wb
+  val store_buffer = new store_buffer
   val exc_arbit = new exc_arbit
 
   // others
@@ -2294,6 +2329,7 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   //instr_realign.io.icache_entry connect io.icache_entry
   mmu.io.m_icache_entry connect io.icache_entry
   mmu.io.m_icache_read_entry connect io.icache_read_entry
+  mmu.io.m_icache_write_entry connect io.icache_write_entry
   mmu.io.m_dcache_read_interface connect io.dcache_read_entry
   mmu.io.m_dcache_write_interface connect io.dcache_write_entry
   //instr_realign.io.icache_rdy := io.icache_rdy
@@ -2343,6 +2379,9 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   exc_arbit.io.clk := io.clk
   exc_arbit.io.rstn := io.rstn
   regfile_wb.io.flush := commit.io.flush
+  store_buffer.io.clk := io.clk
+  store_buffer.io.rstn := io.rstn
+  store_buffer.io.flush := commit.io.flush
   mmu.io.clk := io.clk
   mmu.io.rstn := io.rstn
 
@@ -2419,13 +2458,16 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   regfile_wb.io.writeop_entry := regfile.io.readop_entry
   //wb.io.wb_csr_interface connect csr_regfile_wb.io.write_interface
   wb.io.head_ptr := scoreboard.io.head_ptr
-  wb.io.toload_addr := lsu_unit.io.toload_addr
-  lsu_unit.io.toload_data := wb.io.toload_data
-  lsu_unit.io.toload_hit := wb.io.toload_hit
+  store_buffer.io.toload_addr := lsu_unit.io.toload_addr
+  lsu_unit.io.toload_data := store_buffer.io.toload_data
+  lsu_unit.io.toload_hit := store_buffer.io.toload_hit
+
+  store_buffer.io.wb_dcache_interface_wb connect wb.io.wb_dcache_interface_lsu
+  store_buffer.io.wb_dacahe_interfacec_commit connect commit.io.wb_dacahe_interfacec
 
   commit.io.wb_regfile_interface connect regfile.io.write_interface
   commit.io.wb_csr_interface connect csr_regfile.io.write_interface // todo
-  commit.io.wb_dacahe_interfacec connect mmu.io.s_dcache_write_interface // todo with MMU
+  commit.io.wb_dacahe_interfacec connect mmu.io.s_memory_write_interface // todo with MMU
   //commit.io.wb_dacahe_interfacec connect io.dcache_write_entry
   commit.io.bju_mis_predict connect bju_unit.io.bju_mispredict
   commit.io.exc_entry connect exc_arbit.io.exc_entry
@@ -2449,6 +2491,7 @@ class cutecore extends Component {
   cutecore_logic.io.rstn := io.rstn
   cutecore_logic.io.icache_entry connect icache_inst.io.icache_entry
   cutecore_logic.io.icache_read_entry connect icache_inst.io.icache_read_entry
+  cutecore_logic.io.icache_write_entry connect icache_inst.io.icache_write_entry
   cutecore_logic.io.dcache_write_entry connect dcache_inst.io.dcache_write_entry
   cutecore_logic.io.dcache_read_entry connect dcache_inst.io.dcache_read_entry
   cutecore_logic.io.icache_rdy := icache_inst.io.icache_rdy
@@ -2832,6 +2875,18 @@ trait Interface_MS extends Global_parameter {
     override def asMaster(): Unit = {
       out(raddr,re,sel)
       in(rdata)
+    }
+  }
+
+  // icache wirte interface
+  case class icache_write_interface(config: CoreConfig) extends Bundle with IMasterSlave {
+    val waddr = UInt(DataAddrBus bits)
+    val we = Bool()
+    val wdata = UInt(DataBus bits)
+    val sel = UInt(MemSelBus bits)
+
+    override def asMaster(): Unit = {
+      out(waddr,we,wdata,sel)
     }
   }
 

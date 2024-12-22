@@ -664,7 +664,8 @@ case class scoreboard () extends Component with Global_parameter with Interface_
     val rs2_wten = RS2_TAB(index)(0)
     val rd_addr = RD_TAB(index)(RegAddrBus+1 downto 2)
     val rd_rden = RD_TAB(index)(1)
-    val rd_wten = RD_TAB(index)(0)
+    //val rd_wten = RD_TAB(index)(0)
+    val rd_wten = RD_TAB(index)(0) && (rd_addr =/= 0) // fix error: 写x0寄存器
     val csr_addr = CSR_TAB(index)(CSRAddrBus+1 downto 2)
     val csr_rden = CSR_TAB(index)(1)
     val csr_wten = CSR_TAB(index)(0)

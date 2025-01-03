@@ -26,6 +26,7 @@ case class lsu_unit() extends Component with Global_parameter with Interface_MS 
   val load_rden  = Bool()
   val load_byte  = Bits(4 bits)
   val load_sign  = Bool()
+  val load_rden_real = Bool()
 
   load_raddr := 0
   load_raddr_align := 0
@@ -33,8 +34,18 @@ case class lsu_unit() extends Component with Global_parameter with Interface_MS 
   load_byte  := B"1111"
   load_sign  := True
 
-  val load_result = Reg(UInt(DataBus bits)) init(0)
+  val load_hit_mask = Reg(Bool())  init(False)
+  when(io.ex_operand_entry.dec_valid === False) {
+    load_hit_mask := False
+  } .elsewhen(io.toload_hit.andR === True){
+    load_hit_mask := True
+  } .otherwise{ }
+
+  load_rden_real := load_rden && ~load_hit_mask
+
+  val load_result = Reg(UInt(DataBus bits)) init(0) // todo with timing
   //val load_result = UInt(DataBus bits)
+  //load_result := 0
   val store_waddr = UInt(DataAddrBus bits)
   store_waddr := 0
   val store_waddr_align = Reg(UInt(DataAddrBus bits)) init(0)
@@ -72,12 +83,12 @@ case class lsu_unit() extends Component with Global_parameter with Interface_MS 
   io.lsu_ex_entry.trans_id := ex_operand_entry_trans_id
   io.lsu_ex_entry.pc := ex_operand_entry_pc
 
-  io.lsu_ex_entry.load_rd_en := load_rden   // to dcache
+  io.lsu_ex_entry.load_rd_en := load_rden_real   // to dcache
   io.lsu_ex_entry.load_rd_addr := load_raddr_align  // to dcache
   io.lsu_ex_entry.load_rd_byte := load_byte
   io.lsu_ex_entry.result := load_result // from dcache
 
-  io.read_interfacec.re := load_rden
+  io.read_interfacec.re := load_rden_real
   io.read_interfacec.raddr := load_raddr_align
   io.read_interfacec.sel := U(load_byte)
   val dcache_rdata = io.read_interfacec.rdata

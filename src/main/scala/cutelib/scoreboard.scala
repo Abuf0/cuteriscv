@@ -57,6 +57,11 @@ case class scoreboard () extends Component with Global_parameter with Interface_
     val wb_scb_entry = slave(commit_entry(CoreConfig()))  // from wb
     val head_ptr = out UInt(SCB_INSTR_WIDTH bits)  // to wb
     val scb_full = out Bool() // to instr queue
+    val stall_for_commit = in Bool()
+    val stall_for_load = in Bool()
+    val commit_dcache_wten = in Bool()  // from commit
+    val load_data_rvalid = in Bool()
+    val store_data_wvalid = in Bool() // todo with store delay
   }
 
   //val dec_package = io.scb_dec_entry.asBits
@@ -79,7 +84,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   val rptr = Reg(UInt(SCB_INSTR_WIDTH+1 bit)) init(0)
   val wptr_next = UInt(SCB_INSTR_WIDTH+1 bit)
   val rptr_next = UInt(SCB_INSTR_WIDTH+1 bit)
-  val instr_tab_full = (wptr_next(SCB_INSTR_WIDTH) ^ rptr(SCB_INSTR_WIDTH)) && (wptr_next(SCB_INSTR_WIDTH-1 downto 0) === rptr(SCB_INSTR_WIDTH-1 downto 0))
+  val instr_tab_near_full = (wptr_next(SCB_INSTR_WIDTH) ^ rptr(SCB_INSTR_WIDTH)) && (wptr_next(SCB_INSTR_WIDTH-1 downto 0) === rptr(SCB_INSTR_WIDTH-1 downto 0))
   val instr_tab_full_real = (wptr(SCB_INSTR_WIDTH) ^ rptr(SCB_INSTR_WIDTH)) && (wptr(SCB_INSTR_WIDTH-1 downto 0) === rptr(SCB_INSTR_WIDTH-1 downto 0))
   val instr_tab_empty = (rptr === wptr)
   io.scb_full := instr_tab_full_real
@@ -87,6 +92,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   //val instr_end_tab = Vec(Bool(),REG_NUM)
   //val instr_end_tab = Vec.fill(REG_NUM)(False)
   val instr_end_tab = Vec(Reg(Bool()) init(False),SCB_INSTR_DEEPTH)
+  val instr_real_end_tab = Vec(Reg(Bool()) init(False),SCB_INSTR_DEEPTH)
   val ex_wb_req = Vec(Vec(Reg(Bool()) init(False),SCB_INSTR_DEEPTH) , 8)
   val wb_commit_req = Vec(Reg(Bool()) init(False),SCB_INSTR_DEEPTH)
 
@@ -497,6 +503,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   */
 
   when(instr_end_tab(rptr(SCB_INSTR_WIDTH - 1 downto 0)) === True){  // 当rptr处指令commit结束后，才会把该条指令丢弃, rptr类似sp的存在
+  //when(instr_real_end_tab(rptr(SCB_INSTR_WIDTH - 1 downto 0)) === True){  // todo for rewrite overlap bug
     rptr_next := rptr + 1
   } .otherwise{
     rptr_next := rptr
@@ -650,6 +657,23 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   //val flush_hold = flush_hold_tmp1 || io.flush
   val flush_hold = flush_hold_tmp || io.flush
 
+  val load_rd_en_exe = Reg(Bool()) init(False)  //因为readop阶段就会把信息issue到lsu unit去处理
+  val load_rd_en_real = Reg(Bool()) init(False) // 相对于校准后的load_rd_en_exe的delay 1拍后的信号
+  val load_rd_en_d1 = Reg(Bool()) init(False) // 由于lsu还要锁存一拍, todo with outstanding
+  load_rd_en_exe := io.lsu_ex_entry.load_rd_en
+  when(io.stall_for_load === False) {
+    load_rd_en_real := load_rd_en_exe
+    load_rd_en_d1 := load_rd_en_real
+  } .otherwise{
+    load_rd_en_real := False
+    load_rd_en_d1 := False
+  }
+  //val load_wait = ~load_rd_en_d1 && load_rd_en_exe  // todo with outstanding transactions
+  //val load_wait = ~io.load_data_rvalid && load_rd_en_exe  // todo with outstanding transactions
+  val load_wait = Reg(Bool()) init(False)
+  load_wait := ~io.load_data_rvalid && io.lsu_ex_entry.load_rd_en
+
+
   for(i <- 0 until SCB_IU_DEEPTH) {
     //val index = (rptr + i)(SCB_INSTR_WIDTH - 1 downto 0)
     val index = i
@@ -690,6 +714,12 @@ case class scoreboard () extends Component with Global_parameter with Interface_
     val tab_enable = Reg(Bool()) init(True)
     val predict_flag = PRE_TAB(index)
     val rptr_real = rptr(SCB_INSTR_WIDTH-1 downto 0)
+    val rs1_data_real = UInt(RegDataBus bits)
+    val rs2_data_real = UInt(RegDataBus bits)
+    val csr_data_real = UInt(CSRDataBus bits)
+    rs1_data_real := io.scb_readop_wb_i(rs1_addr)
+    rs2_data_real := io.scb_readop_wb_i(rs2_addr)
+    csr_data_real := io.csr_wb_read_data
 
 
     // 指令状态切换 // todo with 握手
@@ -710,8 +740,12 @@ case class scoreboard () extends Component with Global_parameter with Interface_
     switch(SCB_IU_TAB(i)) {
       instr_end_tab(i) := False
       is(IDLE) {
+        //instr_real_end_tab(i) := False
         when (flush_hold === True){
           SCB_IU_TAB(i) := IDLE
+          //when(io.flush) {
+          //  DEC_VLD(i) := False // add for flush clear TABs
+          //}
           //instr_end_tab(i) := True
         } .elsewhen(i === rptr_real && (scb_iu_tab_ocu <= 0) === True) {
           SCB_IU_TAB(i) := IDLE
@@ -746,6 +780,9 @@ case class scoreboard () extends Component with Global_parameter with Interface_
       is(ISSUE) {
         when(flush_hold === True) {
           SCB_IU_TAB(i) := IDLE
+          //when(io.flush) {
+          //  DEC_VLD(i) := False // add for flush clear TABs
+          //}
           //instr_end_tab(i) := True
           FU_ST(U(alu_sel)) := False
           REG_ST_W(rd_addr) := False
@@ -777,6 +814,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
         //when(io.flush === True && predict_flag === True) {  // todo : 现在统一在commit时处理flush，因此保证了该条指令是oldest，不需要predict_flag了
         when(io.flush === True) {
           SCB_IU_TAB(i) := IDLE
+          //DEC_VLD(i) := False // add for flush clear TABs
           //instr_end_tab(i) := True
           FU_ST(U(alu_sel)) := False
           REG_ST_W(rd_addr) := False
@@ -789,12 +827,6 @@ case class scoreboard () extends Component with Global_parameter with Interface_
 
         }.otherwise {
           SCB_IU_TAB(i) := EXE // todo
-          val rs1_data_real = UInt(RegDataBus bits)
-          val rs2_data_real = UInt(RegDataBus bits)
-          val csr_data_real = UInt(CSRDataBus bits)
-          rs1_data_real := io.scb_readop_wb_i(rs1_addr)
-          rs2_data_real := io.scb_readop_wb_i(rs2_addr)
-          csr_data_real := io.csr_wb_read_data
           switch(alu_sel) {
             is(B(ALU_UNIT_SEL.ALUU)) {
               io.alu_oprand_entry.rs1_data := rs1_data_real
@@ -903,8 +935,112 @@ case class scoreboard () extends Component with Global_parameter with Interface_
       is(EXE) {
         //when (FU_ST(U(alu_sel)) === True) { // todo
         //when (io.flush === True && predict_flag === True){  // todo : 现在统一在commit时处理flush，因此保证了该条指令是oldest，不需要predict_flag了
+        switch(alu_sel) {
+          is(B(ALU_UNIT_SEL.ALUU)) {
+            io.alu_oprand_entry.rs1_data := rs1_data_real
+            io.alu_oprand_entry.rs2_data := rs2_data_real
+            io.alu_oprand_entry.imm := imm_value
+            io.alu_oprand_entry.rd_addr := rd_addr
+            io.alu_oprand_entry.rd_wten := rd_wten
+            io.alu_oprand_entry.instr := instr
+            io.alu_oprand_entry.op_type.assignFromBits(op_type)
+            io.alu_oprand_entry.dec_valid := True
+            io.alu_oprand_entry.trans_id := trans_id
+            io.alu_oprand_entry.pc := pc
+          }
+          is(B(ALU_UNIT_SEL.MULU1)) {
+            io.mul1_oprand_entry.rs1_data := rs1_data_real
+            io.mul1_oprand_entry.rs2_data := rs2_data_real
+            io.mul1_oprand_entry.imm := imm_value
+            io.mul1_oprand_entry.rd_addr := rd_addr
+            io.mul1_oprand_entry.rd_wten := rd_wten
+            io.mul1_oprand_entry.instr := instr
+            io.mul1_oprand_entry.op_type.assignFromBits(op_type)
+            io.mul1_oprand_entry.dec_valid := True
+            io.mul1_oprand_entry.trans_id := trans_id
+            io.mul1_oprand_entry.pc := pc
+          }
+          is(B(ALU_UNIT_SEL.MULU2)) {
+            io.mul2_oprand_entry.rs1_data := rs1_data_real
+            io.mul2_oprand_entry.rs2_data := rs2_data_real
+            io.mul2_oprand_entry.imm := imm_value
+            io.mul2_oprand_entry.rd_addr := rd_addr
+            io.mul2_oprand_entry.rd_wten := rd_wten
+            io.mul2_oprand_entry.instr := instr
+            io.mul2_oprand_entry.op_type.assignFromBits(op_type)
+            io.mul2_oprand_entry.dec_valid := True
+            io.mul2_oprand_entry.trans_id := trans_id
+            io.mul2_oprand_entry.pc := pc
+          }
+          is(B(ALU_UNIT_SEL.DIVU)) {
+            io.div_oprand_entry.rs1_data := rs1_data_real
+            io.div_oprand_entry.rs2_data := rs2_data_real
+            io.div_oprand_entry.imm := imm_value
+            io.div_oprand_entry.rd_addr := rd_addr
+            io.div_oprand_entry.rd_wten := rd_wten
+            io.div_oprand_entry.instr := instr
+            io.div_oprand_entry.op_type.assignFromBits(op_type)
+            io.div_oprand_entry.dec_valid := True
+            io.div_oprand_entry.trans_id := trans_id
+            io.div_oprand_entry.pc := pc
+          }
+          is(B(ALU_UNIT_SEL.LSU)) {
+            io.lsu_oprand_entry.rs1_data := rs1_data_real
+            io.lsu_oprand_entry.rs2_data := rs2_data_real
+            io.lsu_oprand_entry.imm := imm_value
+            io.lsu_oprand_entry.rd_addr := rd_addr
+            io.lsu_oprand_entry.rd_wten := rd_wten
+            io.lsu_oprand_entry.instr := instr
+            io.lsu_oprand_entry.op_type.assignFromBits(op_type)
+            io.lsu_oprand_entry.dec_valid := True
+            io.lsu_oprand_entry.trans_id := trans_id
+            io.lsu_oprand_entry.pc := pc
+          }
+          is(B(ALU_UNIT_SEL.BJU)) {
+            io.bju_oprand_entry.rs1_data := rs1_data_real
+            io.bju_oprand_entry.rs2_data := rs2_data_real
+            io.bju_oprand_entry.imm := imm_value
+            io.bju_oprand_entry.rd_addr := rd_addr
+            io.bju_oprand_entry.rd_wten := rd_wten
+            io.bju_oprand_entry.instr := instr
+            io.bju_oprand_entry.op_type.assignFromBits(op_type)
+            io.bju_oprand_entry.dec_valid := True
+            io.bju_oprand_entry.trans_id := trans_id
+            io.bju_oprand_entry.pc := pc
+            // todo with output branch predict entry to bju unit
+            // branch predict entry pop out //
+            io.scb_branch_predict_entry.pc := bp_pc
+            io.scb_branch_predict_entry.branch_target := bp_branch_target
+            io.scb_branch_predict_entry.is_branch := bp_is_branch.asBool
+            io.scb_branch_predict_entry.is_call := bp_is_call.asBool
+            io.scb_branch_predict_entry.is_ret := bp_is_ret.asBool
+            io.scb_branch_predict_entry.is_jump := bp_is_jump.asBool
+            io.scb_branch_predict_entry.branch_valid := bp_branch_valid.asBool
+            io.scb_branch_predict_entry.branch_taken := bp_branch_taken.asBool
+          }
+          is(B(ALU_UNIT_SEL.CSR)) {
+            io.csr_oprand_entry.rs1_data := rs1_data_real
+            io.csr_oprand_entry.rs2_data := csr_data_real // 复用:前提是csr和reg的data位宽一致
+            io.csr_oprand_entry.imm := imm_value
+            io.csr_oprand_entry.rd_addr := rd_addr
+            io.csr_oprand_entry.rd_wten := rd_wten
+            io.csr_oprand_entry.instr := instr
+            io.csr_oprand_entry.op_type.assignFromBits(op_type)
+            io.csr_oprand_entry.dec_valid := True
+            io.csr_oprand_entry.trans_id := trans_id
+            io.csr_oprand_entry.pc := pc
+          }
+          is(B(ALU_UNIT_SEL.NOPU))  {
+            io.nopu_oprand_entry.instr := instr
+            io.nopu_oprand_entry.op_type.assignFromBits(op_type)
+            io.nopu_oprand_entry.dec_valid := False
+            io.nopu_oprand_entry.trans_id := trans_id
+            io.nopu_oprand_entry.pc := pc
+          }
+        }
         when(io.flush === True) {
           SCB_IU_TAB(i) := IDLE
+          //DEC_VLD(i) := False // add for flush clear TABs
           //instr_end_tab(i) := True
           FU_ST(U(alu_sel)) := False
           REG_ST_W(rd_addr) := False
@@ -943,6 +1079,8 @@ case class scoreboard () extends Component with Global_parameter with Interface_
         } .elsewhen ((alu_sel===B(ALU_UNIT_SEL.MULU1) || alu_sel===B(ALU_UNIT_SEL.MULU2) || alu_sel===B(ALU_UNIT_SEL.DIVU)) && FU_ST(U(alu_sel)) === True) {  // todo
           SCB_IU_TAB(i) := EXE
         } .elsewhen((REG_ST_R(rd_addr) === True && rd_wten && ~(rd_addr===rs1_addr || rd_addr===rs2_addr))){
+          SCB_IU_TAB(i) := EXE
+        } .elsewhen((alu_sel===B(ALU_UNIT_SEL.LSU) && io.lsu_ex_entry.load_rd_en && (io.stall_for_load || load_wait))){ // todo with read-delay && write-delay(for more cycles)
           SCB_IU_TAB(i) := EXE
         } .otherwise {
           //SCB_IU_TAB(i) := COMMIT
@@ -1208,6 +1346,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
         //when (io.flush === True && predict_flag === True){  // todo : 现在统一在commit时处理flush，因此保证了该条指令是oldest，不需要predict_flag了
         when (io.flush === True){
           SCB_IU_TAB(i) := IDLE
+          //DEC_VLD(i) := False // add for flush clear TABs
           ex_wb_req(U(alu_sel))(i) := False
           //instr_end_tab(i) := True
           FU_ST(U(alu_sel)) := False
@@ -1272,13 +1411,14 @@ case class scoreboard () extends Component with Global_parameter with Interface_
             report(Seq("reflash [x] ", io.scb_readop_i(i)))
           }
            */
-        } .elsewhen(instr_end_tab(i) === True){
+        } .elsewhen(instr_end_tab(i) === True && ~(io.stall_for_commit === True && (alu_sel===B(ALU_UNIT_SEL.LSU)) && io.commit_dcache_wten === True)){ // todo with io.store_data_wvalid
           SCB_IU_TAB(i) := IDLE
           REG_ST_R(rs1_addr) := False
           REG_ST_R(rs2_addr) := False
           REG_ST_W(rd_addr) := False
           CSR_ST_R(csr_addr) := False
           CSR_ST_W(csr_addr) := False
+          //instr_real_end_tab(i) := True
         }.otherwise {
           SCB_IU_TAB(i) := COMMIT
         }

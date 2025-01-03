@@ -24,7 +24,8 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
     val predict_btb_entry = slave(btb_predict_entry(CoreConfig()))  // from btb
     //val btb_target = in UInt (InstAddrBus bits) // BTB预测的target地址 <--BTB
     val ras_target = in UInt (InstAddrBus bits) // call返回地址 <--RAS
-    val pc = out UInt (InstAddrBus bits) // 当前pc --> ICache等
+    val pc = out UInt (InstAddrBus bits) // 下一个 --> ICache等
+    val pc_now = out UInt (InstAddrBus bits)
     val if_branch_predict = master(branch_predict_entry(CoreConfig())) // to instr_queue
     val ex_branch_predict = slave(branch_mispredict_entry(CoreConfig())) // from ex stage
     val bju_branch_predict = slave(branch_predict_entry(CoreConfig())) // from ex stage
@@ -32,6 +33,7 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
     val resolved_btb_entry = master(btb_predict_entry(CoreConfig())) // ex stage to btb
     val icache_rdy = in Bool()  // from icache
     val call_push_target = out UInt(InstAddrBus bits)  // to RAS
+    val outstanding_flag = out Bool()  // to instr realign
     //val scb_readop_wb_i = in Vec(UInt(RegDataBus bits),REG_NUM) // from regfile wb
     //val mispredict_entry = master(branch_mispredict_entry(CoreConfig())) // ex stage to ras
   }
@@ -73,6 +75,8 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
     io.resolved_btb_entry.pc := 0
   }
 
+  val pc_now = UInt(InstAddrBus bits)
+  // todo with outstanding transactions
   when(io.flush === True) { // todo wrong
     //pc_r := io.ex_branch_predict.target_pc
     when(io.flush_except === True){
@@ -80,14 +84,14 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
     } .elsewhen(io.flush_mis_predict===True){
       pc_r := io.flush_mis_predict_target_pc
     } .otherwise{ } // todo
-  }.elsewhen(io.icache_rdy === True) { // 包含了stall_push
+  }.elsewhen(/*io.icache_rdy === True*/True) { // 包含了stall_push
     when(is_jump === True && ~io.if_branch_predict.is_call && ~io.if_branch_predict.is_ret) {  // todo
       pc_r := jump_target
     }.elsewhen(io.if_branch_predict.is_branch && io.predict_bht_entry.bht_valid === True && io.predict_bht_entry.bht_taken === True) {
       pc_r := io.predict_btb_entry.btb_target
     }.elsewhen(io.if_branch_predict.is_call === True) {
       //pc_r := io.predict_btb_entry.btb_target
-      call_push_target := pc_r + 4
+      call_push_target := pc_now + 4
       when(is_jump === True) {  // JAL call
         pc_r := jump_target
       } .otherwise{ // JALR call
@@ -95,20 +99,37 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
       }
     }.elsewhen(io.if_branch_predict.is_ret === True) {
       pc_r := io.ras_target
-    }.otherwise {
+    }.elsewhen(io.icache_rdy === True) {
       pc_r := pc_r + InstLen
-    }
-  } .otherwise{}
+    } .otherwise{ }
+  } //.otherwise{}
+  val outstanding_flag = Bool()
+  val outstanding_flag_d1 = Reg(Bool()) init(False)
+  val outstanding_pulse = Bool()
+  val outstanding_pulse_d1 = Reg(Bool()) init(False)
+  val pc_r_d1 = Reg(UInt(InstAddrBus bits)) init(0)
+  outstanding_flag := io.flush || is_jump || io.if_branch_predict.is_call || io.if_branch_predict.is_ret || (io.if_branch_predict.is_branch && io.predict_bht_entry.bht_valid === True && io.predict_bht_entry.bht_taken === True)
+  outstanding_flag_d1 := outstanding_flag
+  outstanding_pulse := outstanding_flag && ~outstanding_flag_d1
+  outstanding_pulse_d1 := outstanding_pulse
+  io.outstanding_flag := outstanding_pulse_d1 // todo with outstanding numbers
+
+  when(io.icache_rdy) {
+    pc_r_d1 := pc_r
+  } .otherwise{ }
+  pc_now := pc_r_d1 // todo with outstanding numbers
+
 
   // RSICV中没有显式的call ret
   when(io.instr_realign.valid===True){
+  //when(True/*io.icache_rdy === True*/){
     io.if_branch_predict.is_branch := io.instr_realign.inst(6 downto 0) === U"1100011" // branch
     io.if_branch_predict.is_call := io.instr_realign.inst(6 downto 4) === U"110" && io.instr_realign.inst(2 downto 0) === U"111" && (io.instr_realign.inst(11 downto 7) === U"00001" || io.instr_realign.inst(11 downto 7) === U"00101")// JAL or JALR, rd=x1/x5
     io.if_branch_predict.is_ret := io.instr_realign.inst(6 downto 0) === U"1100111" && io.instr_realign.inst(11 downto 7) === U"0" && io.instr_realign.inst(19 downto 18) === U"00" && io.instr_realign.inst(16 downto 15) === U"01"   // JALR, rd=0, rs=x1/x5
     io.if_branch_predict.is_jump := io.instr_realign.inst(6 downto 0) === U"1100111" //&& io.if_branch_predict.is_call === False && io.if_branch_predict.is_ret === False // JALR
     //is_jump := io.if_branch_predict.is_call // TODO
     when(io.instr_realign.inst(6 downto 0) === U"1101111"){  // JAL
-      jump_target := pc_r + U(InstBus-20 bits,default -> io.instr_realign.inst(31)) @@ io.instr_realign.inst(19 downto 12)@@io.instr_realign.inst(20 downto 20)@@io.instr_realign.inst(30 downto 21)@@U"0"  // 符号位扩展
+      jump_target := pc_now + U(InstBus-20 bits,default -> io.instr_realign.inst(31)) @@ io.instr_realign.inst(19 downto 12)@@io.instr_realign.inst(20 downto 20)@@io.instr_realign.inst(30 downto 21)@@U"0"  // 符号位扩展
       is_jump := True
     } /*
     .elsewhen(io.instr_realign.inst(6 downto 0) === U"1100111"){ // JALR
@@ -130,8 +151,10 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
 
   io.pc := pc_r
   io.pc_valid := io.instr_realign.valid
+  io.pc_now := pc_now
 
-  io.if_branch_predict.pc := io.pc
+  // to instr_queue
+  io.if_branch_predict.pc := pc_now
   io.if_branch_predict.branch_valid := io.if_branch_predict.is_branch || io.if_branch_predict.is_call || io.if_branch_predict.is_jump
   io.if_branch_predict.branch_taken := io.predict_bht_entry.bht_taken
   io.if_branch_predict.branch_target := io.predict_btb_entry.btb_target

@@ -98,10 +98,10 @@ case class store_buffer() extends Component with Global_parameter with Interface
     when(io.wb_dacahe_interfacec_commit.we && ~(io.wb_dcache_interface_wb.we && io.wb_dcache_interface_wb.wdata === io.wb_dacahe_interfacec_commit.waddr)){  // 现在有指令提交 && 该提交指令没撞上同一个地址的store wb指令
       when(commit_hit) {
         MEM_VLD_TAB(commit_index) := False
-        MEM_SEL_0_TAB(commit_index) := False
-        MEM_SEL_1_TAB(commit_index) := False
-        MEM_SEL_2_TAB(commit_index) := False
-        MEM_SEL_3_TAB(commit_index) := False
+        //MEM_SEL_0_TAB(commit_index) := False
+        //MEM_SEL_1_TAB(commit_index) := False
+        //MEM_SEL_2_TAB(commit_index) := False
+        //MEM_SEL_3_TAB(commit_index) := False
       } .otherwise{ }
     } .otherwise{ }
 

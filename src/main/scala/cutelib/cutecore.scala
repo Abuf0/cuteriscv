@@ -1,8 +1,8 @@
 package cutelib
 import spinal.core._
-import spinal.lib._   // IMasterSlave
+import spinal.lib._
 import RISCV_ISA._
-import BundleImplicit._   // connect with master & slave
+import BundleImplicit._
 import scoreboard._
 import pc_gen._
 import decorder._
@@ -120,6 +120,227 @@ class pc_gen extends Component with Global_parameter with Interface_MS {
   io.if_branch_predict.branch_target := io.predict_btb_entry.btb_target
 }
 */
+
+class ahb_master extends BlackBox with Global_parameter with Interface_MS{
+  val io = new Bundle {
+    val clk = in Bool()
+    val rstn = in Bool()
+    val read_entry = slave(cpu_read_interface(CoreConfig()))
+    val write_entry = slave(cpu_write_interface(CoreConfig()))
+    val ahb_entry = master(ahb_interface(CoreConfig()))
+    val master_read_id = in UInt(2 bits)
+    /*
+    val waddr = in UInt(DataAddrBus bits)
+    val we = in Bool()
+    val wdata = in UInt(DataBus bits)
+    val wsel = in UInt(MemSelBus bits)
+    val raddr = in UInt(DataAddrBus bits)
+    val re = in Bool()
+    val rdata = in UInt(DataBus bits)
+    val rsel = in UInt(MemSelBus bits)
+
+    val haddr = out UInt(DataAddrBus bits)
+    val hwrite = out Bool()
+    val hwdata = out UInt(DataBus bits)
+    val htrans = out UInt(2 bits)
+    val hsize = out UInt(3 bits)
+    val hburst = out UInt(3 bits)
+    val hprot = out UInt(4 bits)
+    val hmasterlock = out Bool()
+
+    val hready = in Bool()
+    val hresp = in Bool()
+    val hrdata = in UInt(DataBus bits)
+    */
+  }
+
+  noIoPrefix()
+  // Function used to rename all signals of the blackbox
+  private def renameIO(): Unit = {
+    io.flatten.foreach(bt => {
+      if(bt.getName().contains("clk")) bt.setName(bt.getName().replace("clk", "HCLK"))
+      if(bt.getName().contains("rstn")) bt.setName(bt.getName().replace("rstn", "HRESETn"))
+      if(bt.getName().contains("ahb_entry")) bt.setName(bt.getName().replace("ahb_entry_", ""))
+      if(bt.getName().contains("read_entry_sel")) bt.setName(bt.getName().replace("read_entry_sel", "rsel"))
+      if(bt.getName().contains("write_entry_sel")) bt.setName(bt.getName().replace("write_entry_sel", "wsel"))
+      if(bt.getName().contains("read_entry")) bt.setName(bt.getName().replace("read_entry_", ""))
+      if(bt.getName().contains("write_entry")) bt.setName(bt.getName().replace("write_entry_", ""))
+
+    })
+  }
+
+  // Execute the function renameIO after the creation of the component
+  addPrePopTask(() => renameIO())
+
+  addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/ahb_master.sv")
+
+  //addRTLPath("./rtl/RegisterBank.v")
+  /*
+    when(io.write_entry.we === True){
+      hwrite := True
+      hwdata := io.write_entry.wdata
+      switch(io.write_entry.sel){
+        is(U"0001"){
+          hsize := U"000"
+          haddr := io.write_entry.waddr
+        }
+        is(U"0010"){
+          hsize := U"000"
+          haddr := io.write_entry.waddr(DataAddrBus-1 downto 2) @@ U"01"
+        }
+        is(U"0100"){
+          hsize := U"000"
+          haddr := io.write_entry.waddr(DataAddrBus-1 downto 2) @@ U"10"
+        }
+        is(U"1000"){
+          hsize := U"000"
+          haddr := io.write_entry.waddr(DataAddrBus-1 downto 2) @@ U"11"
+        }
+        is(U"0011"){
+          hsize := U"001"
+          haddr := io.write_entry.waddr
+        }
+        is(U"1100"){
+          hsize := U"001"
+          haddr := io.write_entry.waddr(DataAddrBus-1 downto 2) @@ U"10"
+        }
+        is(U"1111"){
+          hsize := U"010"
+          haddr := io.write_entry.waddr
+        }
+      }
+    } .otherwise{
+      haddr := io.read_entry.raddr
+      hsize := U"010"
+      hwrite := False
+      when(io.ahb_entry.hready === True){
+        hrdata := io.ahb_entry.hrdata
+      } .otherwise{ }
+    }
+    */
+}
+
+class ahb_connect extends BlackBox with Global_parameter with Interface_MS {
+  val io = new Bundle {
+    val clk = in Bool()
+    val rstn = in Bool()
+    val ahb_entry_S1 = slave(ahb_interface(CoreConfig())) // from core
+    val ahb_entry_M1 = master(ahb_bus_interface(CoreConfig()))  // to ITCM
+    val ahb_entry_M2 = master(ahb_bus_interface(CoreConfig()))  // to DTCM
+    //val ahb_entry_S3 = master(ahb_interface(CoreConfig()))  // to Machine Timer
+    //val ahb_entry_S4 = master(ahb_interface(CoreConfig()))  // to PLIC
+    //val ahb_entry_S5 = master(ahb_interface(CoreConfig()))  // to ahb2apb bridge
+    //val ahb_entry_S6 = master(ahb_interface(CoreConfig()))  // to Debug Module
+  }
+
+  noIoPrefix()
+
+  // Function used to rename all signals of the blackbox
+  private def renameIO(): Unit = {
+    io.flatten.foreach(bt => {
+      if(bt.getName().contains("clk")) bt.setName(bt.getName().replace("clk", "HCLK"))
+      if(bt.getName().contains("rstn")) bt.setName(bt.getName().replace("rstn", "HRESETn"))
+      if(bt.getName().contains("ahb_entry_S1_")) bt.setName(bt.getName().replace("ahb_entry_S1_", "") + "S1")
+      if(bt.getName().contains("ahb_entry_M1_")) bt.setName(bt.getName().replace("ahb_entry_M1_", "") + "M1")
+      if(bt.getName().contains("ahb_entry_M2_")) bt.setName(bt.getName().replace("ahb_entry_M2_", "") + "M2")
+      if(bt.getName().contains("HREADYM")) bt.setName(bt.getName().replace("HREADYM", "HREADYMUXM"))
+
+    })
+  }
+
+  // Execute the function renameIO after the creation of the component
+  addPrePopTask(() => renameIO())
+
+  /*
+  addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/L1AhbMtx/ahb_connect.v")
+  addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/L1AhbMtx/L1AhbMtx.v")
+  addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/L1AhbMtx/L1AhbMtx_default_slave.v")
+  addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/L1AhbMtx/L1AhbMtxArb.v")
+  addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/L1AhbMtx/L1AhbMtxDecS1.v")
+  addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/L1AhbMtx/L1AhbMtxInStg.v")
+  addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/L1AhbMtx/L1AhbMtxOutStg.v")
+  */
+  addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/L1AhbMtx/ahb_interconnect.v")
+
+}
+
+class ahb_to_sram extends BlackBox with Global_parameter with Interface_MS {
+  val io = new Bundle {
+    val clk = in Bool()
+    val rstn = in Bool()
+    val ahb_entry = slave(ahb_bus_interface(CoreConfig())) // from S1
+    val sram_rdy = in Bool()  // from instr_queue
+    //val icache_entry = master(icache_interface(CoreConfig())) // to instr_realign
+    val sram_read_entry = master(dcache_read_interface(CoreConfig()))
+    val sram_write_entry = master(dcache_write_interface(CoreConfig()))
+  }
+  noIoPrefix()
+  // Function used to rename all signals of the blackbox
+  private def renameIO(): Unit = {
+    io.flatten.foreach(bt => {
+      if(bt.getName().contains("clk")) bt.setName(bt.getName().replace("clk", "HCLK"))
+      if(bt.getName().contains("rstn")) bt.setName(bt.getName().replace("rstn", "HRESETn"))
+      if(bt.getName().contains("ahb_entry")) bt.setName(bt.getName().replace("ahb_entry_", ""))
+      if(bt.getName().contains("sram_read_entry_sel")) bt.setName(bt.getName().replace("sram_read_entry_sel", "rsel"))
+      if(bt.getName().contains("sram_write_entry_sel")) bt.setName(bt.getName().replace("sram_write_entry_sel", "wsel"))
+      if(bt.getName().contains("sram_read_entry")) bt.setName(bt.getName().replace("sram_read_entry_", ""))
+      if(bt.getName().contains("sram_write_entry")) bt.setName(bt.getName().replace("sram_write_entry_", ""))    })
+  }
+
+  // Execute the function renameIO after the creation of the component
+  addPrePopTask(() => renameIO())
+  addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/ahb_to_sram.sv")
+  //addRTLPath("./rtl/RegisterBank.v")
+}
+
+class ahb2itcm extends BlackBox with Global_parameter with Interface_MS {
+  val io = new Bundle {
+    val clk = in Bool()
+    val rstn = in Bool()
+    val ahb_entry = slave(ahb_bus_interface(CoreConfig())) // from S1
+    val icache_rdy = in Bool()  // from instr_queue
+    //val icache_entry = master(icache_interface(CoreConfig())) // to instr_realign
+    val icache_read_entry = master(icache_read_interface(CoreConfig()))
+    val icache_write_entry = master(icache_write_interface(CoreConfig()))
+  }
+  noIoPrefix()
+  // Function used to rename all signals of the blackbox
+  private def renameIO(): Unit = {
+    io.flatten.foreach(bt => {
+      if(bt.getName().contains("clk")) bt.setName(bt.getName().replace("clk", "HCLK"))
+      if(bt.getName().contains("rstn")) bt.setName(bt.getName().replace("rstn", "HRESETn"))
+      if(bt.getName().contains("ahb_entry")) bt.setName(bt.getName().replace("ahb_entry_", ""))
+    })
+  }
+
+  // Execute the function renameIO after the creation of the component
+  addPrePopTask(() => renameIO())
+  //addRTLPath("./rtl/RegisterBank.v")
+}
+
+class ahb2dtcm extends BlackBox with Global_parameter with Interface_MS {
+  val io = new Bundle {
+    val clk = in Bool()
+    val rstn = in Bool()
+    val ahb_entry = slave(ahb_bus_interface(CoreConfig())) // from S2
+    val dcache_rdy = in Bool()
+    val dcache_write_entry = master(dcache_write_interface(CoreConfig()))
+    val dcache_read_entry = master(dcache_read_interface(CoreConfig()))
+  }
+  noIoPrefix()
+  // Function used to rename all signals of the blackbox
+  private def renameIO(): Unit = {
+    io.flatten.foreach(bt => {
+      if(bt.getName().contains("clk")) bt.setName(bt.getName().replace("clk", "HCLK"))
+      if(bt.getName().contains("rstn")) bt.setName(bt.getName().replace("rstn", "HRESETn"))
+      if(bt.getName().contains("ahb_entry")) bt.setName(bt.getName().replace("ahb_entry_", ""))
+    })
+  }
+
+  // Execute the function renameIO after the creation of the component
+  addPrePopTask(() => renameIO())
+  //addRTLPath("./rtl/RegisterBank.v")
+}
 
 class bht extends Component with Global_parameter with Interface_MS {
   val io = new Bundle {
@@ -296,20 +517,52 @@ class instr_realign extends Component with Global_parameter with Interface_MS {
   val io = new Bundle {
     val clk = in Bool()
     val rstn = in Bool()
-    val icache_rdy = in Bool() // from icache
-    val icache_entry = master(icache_interface(CoreConfig())) // to icache
-    val pc = in UInt(InstAddrBus bits)  // from pc_gen
+    val instr_queue_not_full = in Bool() // from icache
+    val instr_queue_not_full_outstanding = in Bool() // from icache
+    val icache_entry = master(cpu_read_interface(CoreConfig())) // to icache
+    val pc_next = in UInt(InstAddrBus bits)  // from pc_gen
+    val pc_now = in UInt(InstAddrBus bits)  // from pc_gen
+    val pc_count = in Bool()
     val instr_realign = master(instr_entry(CoreConfig())) // to pc_gen
+    val outstanding_flag = in Bool()  // from pc_gen
   }
   // todo with Complex Instructions //
-  io.icache_entry.addr := io.pc
-  io.instr_realign.valid := io.icache_rdy
-  io.instr_realign.inst := io.icache_entry.data
+  //io.icache_entry.raddr.setAsReg()// delay 1pat
+  io.icache_entry.raddr := io.pc_next
+  //io.instr_realign.valid := io.instr_queue_not_full && io.icache_entry.rvalid
+  //io.instr_realign.valid := io.icache_entry.rvalid  // todo with outstanding transaction
+  //val icache_entry_rvalid_d1 = Reg(Bool()) init(False)
+  //icache_entry_rvalid_d1 := io.icache_entry.rvalid
+  val icache_entry_rvalid_outstanding = io.icache_entry.rvalid_ifu//icache_entry_rvalid_d1 | io.icache_entry.rvalid
+  io.instr_realign.valid := icache_entry_rvalid_outstanding && ~io.outstanding_flag && io.instr_queue_not_full
+
+  //io.instr_realign.inst := io.icache_entry.rdata
+  val rdata_lat = Reg(UInt(InstBus bits)) init(0)
+  val pc_count_d1 = Reg(Bool()) init(False) // todo with outstanding
+  pc_count_d1 := io.pc_count
+  val pc_count_neg = pc_count_d1 && ~io.pc_count
+  val pc_count_lat = pc_count_d1//io.pc_count || pc_count_neg
+  /*
+  when(pc_count_neg){
+    rdata_lat := io.icache_entry.rdata
+  } .otherwise{ }
+  when(pc_count_lat){
+    io.instr_realign.inst := io.icache_entry.rdata
+  } .otherwise{
+    io.instr_realign.inst := rdata_lat
+  }
+  */
+  io.instr_realign.inst := io.icache_entry.rdata
+  io.instr_realign.pc := io.pc_now
 
   //val icache_valid = Reg(Bool()) init(False)
-  val icache_valid = Bool()
-  icache_valid := True
-  io.icache_entry.valid := icache_valid
+  //val icache_valid = Bool()
+  //icache_valid := True
+  val icache_re = Reg(Bool()) init(False)
+  //val icache_re = Bool()
+  icache_re := io.instr_queue_not_full_outstanding
+  //icache_re := io.instr_queue_not_full
+  io.icache_entry.re := icache_re
 }
 
 class instr_queue extends Component with Global_parameter with Interface_MS {
@@ -324,6 +577,7 @@ class instr_queue extends Component with Global_parameter with Interface_MS {
     val if2id_branch_predict_entry = master(branch_predict_entry(CoreConfig())) // to id_stage
     val stall_pop = in Bool() // from scb & ... todo
     val stall_push = out Bool()  // to pc_gen & icache todo
+    val instr_queue_not_full_outstanding = out Bool() // for icache re
   }
   val streamA,streamB = Stream(Bits(InstAddrBus+InstAddrBus+InstBus+6 bits))
 
@@ -331,10 +585,14 @@ class instr_queue extends Component with Global_parameter with Interface_MS {
     dataType = Bits(InstAddrBus+InstAddrBus+InstBus+6 bits),
     depth    = Instr_FIFO_DEEPTH
   )
-  val fifo_full = instr_fifo.io.occupancy > (Instr_FIFO_DEEPTH-1)
+  val fifo_full = instr_fifo.io.occupancy >= (Instr_FIFO_DEEPTH-1)
   val fifo_empty = instr_fifo.io.occupancy === 0
 
-  instr_fifo.io.flush := io.flush
+  io.instr_queue_not_full_outstanding := instr_fifo.io.occupancy < (Instr_FIFO_DEEPTH-1-1-1) // todo with outstanding transaction
+
+  val flush_d1 = Reg(Bool()) init(False)
+  flush_d1 := io.flush
+  instr_fifo.io.flush := io.flush || flush_d1 // todo with outstanding transaction
 
   when(io.if_intr_entry.valid && ~fifo_full){
     streamA.valid := True
@@ -386,7 +644,7 @@ class icache extends Component with Global_parameter with Interface_MS {
     val clk = in Bool()
     val rstn = in Bool()
     val icache_rdy = out Bool()  // from instr_queue
-    val icache_entry = slave(icache_interface(CoreConfig())) // to instr_realign
+    //val icache_entry = slave(icache_interface(CoreConfig())) // to instr_realign
     val icache_read_entry = slave(icache_read_interface(CoreConfig()))
     val icache_write_entry = slave(icache_write_interface(CoreConfig()))
   }
@@ -475,6 +733,7 @@ class icache extends Component with Global_parameter with Interface_MS {
   val ram_2 = Mem(UInt(ByteWidth bits),InstMemNum/4)
   val ram_3 = Mem(UInt(ByteWidth bits),InstMemNum/4)
 
+  /*
   when( io.icache_entry.valid === False){
     io.icache_entry.data := 0
     io.icache_rdy := False
@@ -488,7 +747,7 @@ class icache extends Component with Global_parameter with Interface_MS {
     // 或者说，等同于pc_addr右移2bit，故而取pc_addr[18:2]即可反映Ori指令下的地址
     io.icache_rdy := True
   }
-
+*/
   // 读内存操作,mem访存请求读取内存时，内存一次提供字，由mem决定取字的字节/半字/全字
   when(io.icache_read_entry.re === True){
     // 取对应地址（去掉后两位，即对齐4字节，共取16bit地址）
@@ -501,6 +760,7 @@ class icache extends Component with Global_parameter with Interface_MS {
       io.icache_read_entry.rdata := 0
     }
 
+  io.icache_rdy := True // todo
 
   val r_ramAddr = io.icache_write_entry.waddr(DataMemNumLog2-1 downto 2)  // 舍去原始地址后两位，对齐4的倍数
   val r_ram0En = io.icache_write_entry.sel(0)
@@ -1762,6 +2022,10 @@ class mul_unit extends Component with Global_parameter with Interface_MS {
     val mul_ex_entry = master(mul_res_entry(CoreConfig()))  // to commit
   }
   // todo 不急
+  io.mul_ex_entry.trans_id := SCB_IU_DEEPTH
+  io.mul_ex_entry.pc := 0
+  io.mul_ex_entry.instr := 0
+  io.mul_ex_entry.result := 0
 }
 
 class div_unit extends Component with Global_parameter with Interface_MS {
@@ -1774,6 +2038,10 @@ class div_unit extends Component with Global_parameter with Interface_MS {
     val div_ex_entry = master(div_res_entry(CoreConfig()))  // to commit
   }
   // todo 不急
+  io.div_ex_entry.trans_id := SCB_IU_DEEPTH
+  io.div_ex_entry.pc := 0
+  io.div_ex_entry.instr := 0
+  io.div_ex_entry.result := 0
 }
 
 /*
@@ -2244,13 +2512,16 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   val io = new Bundle {
     val clk = in Bool()
     val rstn = in Bool()
-    val icache_rdy = in Bool()  // from top
-    val icache_entry = master(icache_interface(CoreConfig())) // to top
-    val icache_read_entry = master(icache_read_interface(CoreConfig()))
-    val icache_write_entry = master(dcache_write_interface(CoreConfig())) // to top
-    val dcache_rdy = in Bool()  // from top
-    val dcache_write_entry = master(dcache_write_interface(CoreConfig())) // to top
-    val dcache_read_entry = master(dcache_read_interface(CoreConfig())) // to top
+    //val icache_rdy = in Bool()  // from top
+    //val icache_entry = master(icache_interface(CoreConfig())) // to top
+    //val icache_read_entry = master(icache_read_interface(CoreConfig()))
+    //val icache_write_entry = master(dcache_write_interface(CoreConfig())) // to top
+    //val dcache_rdy = in Bool()  // from top
+    //val dcache_write_entry = master(dcache_write_interface(CoreConfig())) // to top
+    //val dcache_read_entry = master(dcache_read_interface(CoreConfig())) // to top
+    val write_entry = master(cpu_write_interface(CoreConfig())) // to bus
+    val read_entry = master(cpu_read_interface(CoreConfig())) // to bus
+    val read_id = out UInt (2 bits)
   }
   // 实例化模块 //
   // pipeline-1 : pc_gen stage //
@@ -2306,7 +2577,12 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   //pc_gen.io.csr_epc1 := 0 // todo
   //pc_gen.io.csr_epc2 := 0 // todo
   //pc_gen.io.icache_rdy := io.icache_rdy
-  pc_gen.io.icache_rdy := ~instr_queue.io.stall_push
+  //pc_gen.io.icache_rdy := ~instr_queue.io.stall_push && ~mmu.io.stall_for_ifu_r // queue满了或itcm stall都会导致pc暂停
+  val stall_for_ifu_r_d1 = Reg(Bool())  init(False)
+  stall_for_ifu_r_d1 := mmu.io.stall_for_ifu_r
+  //val stall_for_pc = stall_for_ifu_r_d1 || mmu.io.stall_for_ifu_r // todo with outstanding
+  val stall_for_pc = mmu.io.stall_for_ifu_r
+  pc_gen.io.icache_rdy := instr_realign.io.icache_entry.re && ~stall_for_pc//~mmu.io.stall_for_ifu_r
   pc_gen.io.ras_target := ras.io.ras_target
   pc_gen.io.predict_btb_entry connect btb.io.predict_btb_entry
   pc_gen.io.predict_bht_entry connect bht.io.predict_bht_entry
@@ -2326,15 +2602,22 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   //pc_gen.io.scb_readop_wb_i := regfile_wb.io.readop_entry
 
   instr_realign.io.icache_entry connect mmu.io.s_icache_entry // todo with MMU
+  //instr_realign.io.icache_entry connect mmu.io.m_memory_read_interface
   //instr_realign.io.icache_entry connect io.icache_entry
+  /*
   mmu.io.m_icache_entry connect io.icache_entry
   mmu.io.m_icache_read_entry connect io.icache_read_entry
   mmu.io.m_icache_write_entry connect io.icache_write_entry
   mmu.io.m_dcache_read_interface connect io.dcache_read_entry
   mmu.io.m_dcache_write_interface connect io.dcache_write_entry
+  */
   //instr_realign.io.icache_rdy := io.icache_rdy
-  instr_realign.io.icache_rdy := ~instr_queue.io.stall_push
-  instr_realign.io.pc := pc_gen.io.pc
+  instr_realign.io.pc_count :=  instr_realign.io.icache_entry.re && ~stall_for_pc
+  instr_realign.io.instr_queue_not_full := ~instr_queue.io.stall_push
+  instr_realign.io.instr_queue_not_full_outstanding := instr_queue.io.instr_queue_not_full_outstanding
+  instr_realign.io.pc_next:= pc_gen.io.pc
+  instr_realign.io.pc_now := pc_gen.io.pc_now
+  instr_realign.io.outstanding_flag := pc_gen.io.outstanding_flag
   btb.io.clk := io.clk
   btb.io.rstn := io.rstn
   bht.io.clk := io.clk
@@ -2386,8 +2669,9 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   mmu.io.rstn := io.rstn
 
   //instr_queue.io.if_intr_entry connect instr_realign.io.instr_realign
-  instr_queue.io.if_intr_entry.pc := pc_gen.io.pc
-  instr_queue.io.if_intr_entry.valid := instr_realign.io.instr_realign.valid
+  //instr_queue.io.if_intr_entry.pc := pc_gen.io.pc
+  instr_queue.io.if_intr_entry.pc := instr_realign.io.instr_realign.pc
+  instr_queue.io.if_intr_entry.valid := instr_realign.io.instr_realign.valid //&& ~mmu.io.stall_for_ifu_r // todo with icache_rdy
   instr_queue.io.if_intr_entry.inst := instr_realign.io.instr_realign.inst
   instr_queue.io.if2id_instr_entry connect decorder.io.id_instr_entry
   instr_queue.io.if2id_branch_predict_entry connect id2issue.io.id_branch_predict_entry
@@ -2421,7 +2705,7 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   //id2issue.io.id2issue_dec_entry connect lsu_unit.io.dec_entry
   scoreboard.io.lsu_oprand_entry connect lsu_unit.io.ex_operand_entry
   scoreboard.io.lsu_ex_entry connect lsu_unit.io.lsu_ex_entry
-  lsu_unit.io.read_interfacec connect mmu.io.s_memory_read_interface
+  lsu_unit.io.read_interfacec connect mmu.io.s_memory_read_interface  // todo with bus
   // todo with csr
   //id2issue.io.id2issue_dec_entry connect csr_unit.io.dec_entry
   scoreboard.io.csr_oprand_entry connect csr_unit.io.ex_operand_entry
@@ -2448,6 +2732,12 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
 
   scoreboard.io.wb_ras_entry connect ras.io.ex_commit_entry
 
+  scoreboard.io.stall_for_commit := mmu.io.stall_for_lsu_w
+  scoreboard.io.stall_for_load := mmu.io.stall_for_lsu_r
+  scoreboard.io.commit_dcache_wten := commit.io.wb_dacahe_interfacec.we
+  scoreboard.io.load_data_rvalid := mmu.io.s_memory_read_interface.rvalid_lsu
+  scoreboard.io.store_data_wvalid := mmu.io.s_memory_write_interface.wvalid
+
   wb.io.wb_regfile_interface_alu connect regfile_wb.io.write_interface_alu
   wb.io.wb_regfile_interface_mul1 connect regfile_wb.io.write_interface_mul1
   wb.io.wb_regfile_interface_mul2 connect regfile_wb.io.write_interface_mul2
@@ -2456,7 +2746,7 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   wb.io.wb_regfile_interface_lsu connect regfile_wb.io.write_interface_lsu
 
   regfile_wb.io.writeop_entry := regfile.io.readop_entry
-  //wb.io.wb_csr_interface connect csr_regfile_wb.io.write_interface
+  wb.io.wb_csr_interface connect csr_regfile_wb.io.write_interface
   wb.io.head_ptr := scoreboard.io.head_ptr
   store_buffer.io.toload_addr := lsu_unit.io.toload_addr
   lsu_unit.io.toload_data := store_buffer.io.toload_data
@@ -2467,13 +2757,23 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
 
   commit.io.wb_regfile_interface connect regfile.io.write_interface
   commit.io.wb_csr_interface connect csr_regfile.io.write_interface // todo
-  commit.io.wb_dacahe_interfacec connect mmu.io.s_memory_write_interface // todo with MMU
+  commit.io.wb_dacahe_interfacec connect mmu.io.s_memory_write_interface // todo with bus
   //commit.io.wb_dacahe_interfacec connect io.dcache_write_entry
   commit.io.bju_mis_predict connect bju_unit.io.bju_mispredict
   commit.io.exc_entry connect exc_arbit.io.exc_entry
   commit.io.csr_exc_entry connect csr_regfile.io.csr_exc_entry  // todo
   commit.io.csr_exc_entry connect csr_regfile_wb.io.csr_exc_entry  // todo
   commit.io.exc_commit_entry connect exc_arbit.io.exc_commit_entry
+
+  // todo //
+  io.write_entry connect mmu.io.m_memory_write_interface
+  io.read_entry connect mmu.io.m_memory_read_interface
+  io.read_id := mmu.io.m_memory_read_id
+
+  commit.io.clint_int_entry.int_req := False
+  commit.io.clint_int_entry.int_source := 0
+  commit.io.plic_int_entry.int_req := False
+  commit.io.plic_int_entry.int_source := 0
 }
 
 class cutecore extends Component {
@@ -2481,14 +2781,38 @@ class cutecore extends Component {
     val clk = in Bool()
     val rstn = in Bool()
   }
+
+  // todo with crgu
+  //cutecore_logic.io.clk := io.clk
+  //cutecore_logic.io.rstn := io.rstn
+  val  rstn_sync_d1 = Reg(Bool()) init(False)
+  val  rstn_sync_d2 = Reg(Bool()) init(False)
+  val  rstn_sync_d3 = Reg(Bool()) init(False)
+  val  rstn_sync_d4 = Reg(Bool()) init(False)
+
+  rstn_sync_d1 := True
+  rstn_sync_d2 := rstn_sync_d1
+  rstn_sync_d3 := rstn_sync_d2
+  rstn_sync_d4 := rstn_sync_d3
+  val cpu_rst = ~rstn_sync_d4
+  val cpu_clk = io.clk
+
+  val cpu_cd = ClockDomain(cpu_clk,cpu_rst)
+  val cutecore_logic = cpu_cd(new cutecore_logic) //mycd时钟
   // 实例化模块 //
-  val cutecore_logic = new cutecore_logic
+  //val cutecore_logic = new cutecore_logic
   val icache_inst = new icache
   val dcache_inst = new dcache
 
+  //例化黑盒
+  val ahb_master = new ahb_master
+  val ahb_connect = new ahb_connect
+  val ahb2itcm = new ahb_to_sram
+  val ahb2dtcm = new ahb_to_sram
+
+
   // 建立连接关系 //
-  cutecore_logic.io.clk := io.clk
-  cutecore_logic.io.rstn := io.rstn
+  /*
   cutecore_logic.io.icache_entry connect icache_inst.io.icache_entry
   cutecore_logic.io.icache_read_entry connect icache_inst.io.icache_read_entry
   cutecore_logic.io.icache_write_entry connect icache_inst.io.icache_write_entry
@@ -2496,6 +2820,36 @@ class cutecore extends Component {
   cutecore_logic.io.dcache_read_entry connect dcache_inst.io.dcache_read_entry
   cutecore_logic.io.icache_rdy := icache_inst.io.icache_rdy
   cutecore_logic.io.dcache_rdy := dcache_inst.io.dcache_rdy
+  */
+  //ahb_itcm.io.icache_entry connect icache_inst.io.icache_entry
+  ahb2itcm.io.sram_read_entry connect icache_inst.io.icache_read_entry
+  ahb2itcm.io.sram_write_entry connect icache_inst.io.icache_write_entry
+  ahb2dtcm.io.sram_write_entry connect dcache_inst.io.dcache_write_entry
+  ahb2dtcm.io.sram_read_entry connect dcache_inst.io.dcache_read_entry
+  ahb2itcm.io.sram_rdy := icache_inst.io.icache_rdy
+  ahb2dtcm.io.sram_rdy := dcache_inst.io.dcache_rdy
+
+  //black box
+  ahb_master.io.clk := io.clk
+  ahb_master.io.rstn := io.rstn
+  ahb_master.io.write_entry connect cutecore_logic.io.write_entry
+  ahb_master.io.read_entry connect cutecore_logic.io.read_entry
+  ahb_master.io.master_read_id := cutecore_logic.io.read_id
+  //ahb_master.io.ahb_entry
+  //ahb_master.io.waddr <> cutecore_logic.io.write_entry.waddr
+  //ahb_master.io.we <> cutecore_logic.io.write_entry.we
+  //ahb_master.io.sel <> cutecore_logic.io.write_entry.sel
+  //ahb_master.io.wdata <> cutecore_logic.io.write_entry.wdata
+  ahb_connect.io.clk := io.clk
+  ahb_connect.io.rstn := io.rstn
+  ahb2itcm.io.clk := io.clk
+  ahb2itcm.io.rstn := io.rstn
+  ahb2dtcm.io.clk := io.clk
+  ahb2dtcm.io.rstn := io.rstn
+  ahb_connect.io.ahb_entry_S1 connect ahb_master.io.ahb_entry
+  ahb_connect.io.ahb_entry_M1 connect ahb2itcm.io.ahb_entry
+  ahb_connect.io.ahb_entry_M2 connect ahb2dtcm.io.ahb_entry
+
 
 }
 
@@ -2943,6 +3297,89 @@ trait Interface_MS extends Global_parameter {
       in(rdata)
     }
   }
+
+  // ahb interface
+  case class ahb_interface(config: CoreConfig) extends Bundle with IMasterSlave {
+    // Global //
+    //val hclk = in Bool()
+    //val hresetn = in Bool()
+
+    val HADDR = UInt(DataAddrBus bits)
+    val HWRITE = Bool()
+    val HWDATA = UInt(DataBus bits)
+    val HTRANS = UInt(2 bits)
+    val HSIZE = UInt(3 bits)
+    val HBURST = UInt(3 bits)
+    val HPROT = UInt(4 bits)
+    val HMASTLOCK = Bool()
+
+    val HREADY = Bool()
+    val HRESP = Bool()
+    val HRDATA = UInt(DataBus bits)
+
+    override def asMaster(): Unit = {
+      out(HADDR,HWRITE,HWDATA,HTRANS,HSIZE,HBURST,HPROT,HMASTLOCK)
+      in(HREADY,HRESP,HRDATA)
+    }
+  }
+
+  // ahb bus interface
+  case class ahb_bus_interface(config: CoreConfig) extends Bundle with IMasterSlave {
+    // Global //
+    //val hclk = in Bool()
+    //val hresetn = in Bool()
+
+    val HADDR = UInt(DataAddrBus bits)
+    val HWRITE = Bool()
+    val HWDATA = UInt(DataBus bits)
+    val HTRANS = UInt(2 bits)
+    val HSIZE = UInt(3 bits)
+    val HBURST = UInt(3 bits)
+    val HPROT = UInt(4 bits)
+    val HMASTLOCK = Bool()
+
+    val HSEL = Bool()
+    val HREADYOUT = Bool()
+
+    val HREADY = Bool()
+    val HRESP = Bool()
+    val HRDATA = UInt(DataBus bits)
+
+    override def asMaster(): Unit = {
+      out(HADDR,HWRITE,HWDATA,HTRANS,HSIZE,HBURST,HPROT,HMASTLOCK,HSEL,HREADYOUT)
+      in(HREADY,HRESP,HRDATA)
+    }
+  }
+
+  // cpu read interface
+  case class cpu_read_interface(config: CoreConfig) extends Bundle with IMasterSlave {
+    val raddr = UInt(DataAddrBus bits)
+    val re = Bool()
+    val rdata = UInt(DataBus bits)
+    val sel = UInt(MemSelBus bits)
+    val rvalid_ifu = Bool()
+    val rvalid_lsu = Bool()
+
+    override def asMaster(): Unit = {
+      out(raddr,re,sel)
+      in(rdata,rvalid_ifu,rvalid_lsu)
+    }
+  }
+
+  // cpu wirte interface
+  case class cpu_write_interface(config: CoreConfig) extends Bundle with IMasterSlave {
+    val waddr = UInt(DataAddrBus bits)
+    val we = Bool()
+    val wdata = UInt(DataBus bits)
+    val sel = UInt(MemSelBus bits)
+    val wvalid = Bool()
+
+    override def asMaster(): Unit = {
+      out(waddr,we,wdata,sel)
+      in(wvalid)
+    }
+  }
+
 }
 
 trait Global_parameter {
@@ -3010,5 +3447,7 @@ object cuteriscvVerilog {
   def main(args: Array[String]) {
     CoreConfig
       .generateVerilog(new cutecore)  // module name
+    val top = SpinalVerilog(new cutecore)
+    top.mergeRTLSource("mergeRTL") // Merge all rtl sources into mergeRTL.vhd and mergeRTL.v files
   }
 }

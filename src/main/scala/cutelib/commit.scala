@@ -128,7 +128,8 @@ case class commit() extends Component with Global_parameter with Interface_MS{
   val commit_req_d1 = RegNext(io.ex_commit_entry.commit_req, False)
   val  commit_req_pulse = io.ex_commit_entry.commit_req & ~commit_req_d1
   //when(commit_req_pulse && ~io.flush){ // added flush
-  when(commit_req_pulse && ~flush_req_pulse){  // todo: 分支预测失败指令是否要提交？ 中断异常指令是否要提交？
+  //when(commit_req_pulse && ~flush_req_pulse){  // todo: 分支预测失败指令是否要提交？ 中断异常指令是否要提交？
+  when(io.ex_commit_entry.commit_req && ~flush_req){  // todo with bus delay
     io.wb_regfile_interface.reg_wen := io.ex_commit_entry.reg_wb_en
     io.wb_regfile_interface.reg_waddr := io.ex_commit_entry.reg_wb_addr
     io.wb_regfile_interface.reg_wdata := io.ex_commit_entry.reg_wb_data // todo for lsu
@@ -165,7 +166,8 @@ case class commit() extends Component with Global_parameter with Interface_MS{
 
   val commit_req_ack = Reg(Bool()) init(False)
   val recv_id = Reg(UInt(SCB_ID_WIDTH bits)) init(SCB_IU_DEEPTH)
-  when(commit_req_pulse){
+  //when(commit_req_pulse){
+  when(io.ex_commit_entry.commit_req){  // todo with bus delay
     commit_req_ack := True  // todo with regfile/csr/dcache ack
     recv_id := io.ex_commit_entry.trans_id
   } .otherwise{

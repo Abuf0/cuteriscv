@@ -43,9 +43,9 @@ case class lsu_unit() extends Component with Global_parameter with Interface_MS 
 
   load_rden_real := load_rden && ~load_hit_mask
 
-  val load_result = Reg(UInt(DataBus bits)) init(0) // todo with timing
-  //val load_result = UInt(DataBus bits)
-  //load_result := 0
+  //val load_result = Reg(UInt(DataBus bits)) init(0) // todo with timing
+  val load_result = UInt(DataBus bits)
+  load_result := 0
   val store_waddr = UInt(DataAddrBus bits)
   store_waddr := 0
   val store_waddr_align = Reg(UInt(DataAddrBus bits)) init(0)

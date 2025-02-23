@@ -109,14 +109,26 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
   val outstanding_pulse_d1 = Reg(Bool()) init(False)
   val pc_r_d1 = Reg(UInt(InstAddrBus bits)) init(0)
   outstanding_flag := io.flush || is_jump || io.if_branch_predict.is_call || io.if_branch_predict.is_ret || (io.if_branch_predict.is_branch && io.predict_bht_entry.bht_valid === True && io.predict_bht_entry.bht_taken === True)
+  /*
   outstanding_flag_d1 := outstanding_flag
   outstanding_pulse := outstanding_flag && ~outstanding_flag_d1
   outstanding_pulse_d1 := outstanding_pulse
   io.outstanding_flag := outstanding_pulse_d1 // todo with outstanding numbers
+  */
+  val outstanding_pulse_tog = Reg(Bool()) init(False)
+  when(outstanding_flag === True){
+    outstanding_pulse_tog := True
+  } .elsewhen(io.icache_rdy === True){
+    outstanding_pulse_tog := False
+  }
+  io.outstanding_flag := outstanding_pulse_tog
 
   when(io.icache_rdy) {
     pc_r_d1 := pc_r
   } .otherwise{ }
+
+//  pc_r_d1 := pc_r
+
   pc_now := pc_r_d1 // todo with outstanding numbers
 
 

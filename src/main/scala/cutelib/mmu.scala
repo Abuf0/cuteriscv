@@ -22,6 +22,8 @@ case class mmu() extends Component with Global_parameter with Interface_MS {
     val stall_for_ifu_r = out Bool()
     val stall_for_lsu_w = out Bool()
     val stall_for_lsu_r = out Bool()
+    val ifu_rvld = out Bool()
+    val lsu_rvld = out Bool()
     val m_memory_read_id = out UInt(2 bits) // 01: IFU, 10: LSU
   }
   //io.m_dcache_write_interface connect io.s_memory_write_interface
@@ -45,49 +47,69 @@ case class mmu() extends Component with Global_parameter with Interface_MS {
   io.s_memory_read_interface.rdata := io.m_memory_read_interface.rdata
   io.s_icache_entry.rvalid_ifu := io.m_memory_read_interface.rvalid_ifu
   io.s_icache_entry.rvalid_lsu := io.m_memory_read_interface.rvalid_lsu
+  io.s_icache_entry.rready_ifu := io.m_memory_read_interface.rready_ifu
+  io.s_icache_entry.rready_lsu := io.m_memory_read_interface.rready_lsu
   io.s_memory_read_interface.rvalid_lsu := io.m_memory_read_interface.rvalid_lsu
   io.s_memory_read_interface.rvalid_ifu := io.m_memory_read_interface.rvalid_ifu
   io.s_memory_write_interface.wvalid := io.m_memory_write_interface.wvalid
+
+  io.m_memory_read_interface.re := False
+  io.m_memory_read_interface.raddr := 0
+  io.m_memory_read_interface.sel := U"1111"
+  io.m_memory_write_interface.we := False
+  io.m_memory_write_interface.sel :=  U"1111"
+  io.m_memory_write_interface.waddr := 0
+  io.m_memory_write_interface.wdata := 0
   io.m_memory_read_id := 0
   when(io.s_memory_write_interface.we === True){ // LSU比IFU优先级更高
     io.m_memory_write_interface.we := io.s_memory_write_interface.we
     io.m_memory_write_interface.sel := io.s_memory_write_interface.sel
     io.m_memory_write_interface.waddr := io.s_memory_write_interface.waddr
     io.m_memory_write_interface.wdata := io.s_memory_write_interface.wdata
-    io.stall_for_lsu_w := False
+    //io.stall_for_lsu_w := False
+    ////io.stall_for_lsu_w := ~io.m_memory_write_interface.wvalid
     io.m_memory_read_interface.re := False
     io.m_memory_read_interface.raddr := io.s_memory_read_interface.raddr
     io.m_memory_read_interface.sel := io.s_memory_read_interface.sel
     //io.s_memory_read_interface.rdata := io.m_memory_read_interface.rdata
-    io.stall_for_ifu_r := True
-    io.stall_for_lsu_r := True
+    ////io.stall_for_ifu_r := True
+    ////io.stall_for_lsu_r := True
   } .elsewhen(io.s_memory_read_interface.re === True){  // LSU读
     io.m_memory_read_interface.re := io.s_memory_read_interface.re
     io.m_memory_read_interface.raddr := io.s_memory_read_interface.raddr
     io.m_memory_read_interface.sel := io.s_memory_read_interface.sel
     //io.s_memory_read_interface.rdata := io.m_memory_read_interface.rdata
-    io.stall_for_ifu_r := True
-    io.stall_for_lsu_r := False//~io.m_memory_read_interface.rvalid
+    ////io.stall_for_ifu_r := True
+    //io.stall_for_lsu_r := False//~io.m_memory_read_interface.rvalid
+    ////io.stall_for_lsu_r := ~io.m_memory_read_interface.rvalid_lsu
     io.m_memory_write_interface.we := False
     io.m_memory_write_interface.sel := io.s_memory_write_interface.sel
     io.m_memory_write_interface.waddr := io.s_memory_write_interface.waddr
     io.m_memory_write_interface.wdata := io.s_memory_write_interface.wdata
-    io.stall_for_lsu_w := True
+    ////io.stall_for_lsu_w := True
     io.m_memory_read_id := U"10"
-  } .otherwise{
+  //} .otherwise{
+  } .elsewhen(io.s_icache_entry.re === True){ // IFU 读
     io.m_memory_read_interface.re := io.s_icache_entry.re
     io.m_memory_read_interface.raddr := io.s_icache_entry.raddr
     io.m_memory_read_interface.sel := U"1111"
     //io.s_icache_entry.rdata := io.m_memory_read_interface.rdata
-    io.stall_for_ifu_r := False//~io.m_memory_read_interface.rvalid
-    io.stall_for_lsu_r := True
+    //io.stall_for_ifu_r := False//~io.m_memory_read_interface.rvalid
+    ////io.stall_for_ifu_r := ~io.m_memory_read_interface.rvalid_ifu
+    ////io.stall_for_lsu_r := True
     io.m_memory_write_interface.we := False
     io.m_memory_write_interface.sel := io.s_memory_write_interface.sel
     io.m_memory_write_interface.waddr := io.s_memory_write_interface.waddr
     io.m_memory_write_interface.wdata := io.s_memory_write_interface.wdata
-    io.stall_for_lsu_w := True
+    ////io.stall_for_lsu_w := True
     io.m_memory_read_id := U"01"
   }
+  io.stall_for_lsu_w := ~io.m_memory_write_interface.wvalid
+  io.stall_for_lsu_r := ~io.m_memory_read_interface.rready_lsu
+  io.stall_for_ifu_r := ~io.m_memory_read_interface.rready_ifu
+  io.ifu_rvld := io.m_memory_read_interface.rvalid_ifu
+  io.lsu_rvld := io.m_memory_read_interface.rvalid_lsu
+
   //io.stall_for_lsu_r := io.s_memory_read_interface.re && ~io.m_memory_read_interface.rvalid
   //io.stall_for_ifu_r := io.s_icache_entry.re && ~io.m_memory_read_interface.rvalid
 

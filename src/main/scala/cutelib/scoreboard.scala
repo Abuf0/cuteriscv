@@ -743,9 +743,9 @@ case class scoreboard () extends Component with Global_parameter with Interface_
         //instr_real_end_tab(i) := False
         when (flush_hold === True){
           SCB_IU_TAB(i) := IDLE
-          //when(io.flush) {
-          //  DEC_VLD(i) := False // add for flush clear TABs
-          //}
+          when(io.flush) {
+            DEC_VLD(i) := False // add for flush clear TABs
+          }
           //instr_end_tab(i) := True
         } .elsewhen(i === rptr_real && (scb_iu_tab_ocu <= 0) === True) {
           SCB_IU_TAB(i) := IDLE
@@ -780,9 +780,9 @@ case class scoreboard () extends Component with Global_parameter with Interface_
       is(ISSUE) {
         when(flush_hold === True) {
           SCB_IU_TAB(i) := IDLE
-          //when(io.flush) {
-          //  DEC_VLD(i) := False // add for flush clear TABs
-          //}
+          when(io.flush) {
+            DEC_VLD(i) := False // add for flush clear TABs
+          }
           //instr_end_tab(i) := True
           FU_ST(U(alu_sel)) := False
           REG_ST_W(rd_addr) := False
@@ -814,7 +814,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
         //when(io.flush === True && predict_flag === True) {  // todo : 现在统一在commit时处理flush，因此保证了该条指令是oldest，不需要predict_flag了
         when(io.flush === True) {
           SCB_IU_TAB(i) := IDLE
-          //DEC_VLD(i) := False // add for flush clear TABs
+          DEC_VLD(i) := False // add for flush clear TABs
           //instr_end_tab(i) := True
           FU_ST(U(alu_sel)) := False
           REG_ST_W(rd_addr) := False
@@ -1040,7 +1040,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
         }
         when(io.flush === True) {
           SCB_IU_TAB(i) := IDLE
-          //DEC_VLD(i) := False // add for flush clear TABs
+          DEC_VLD(i) := False // add for flush clear TABs
           //instr_end_tab(i) := True
           FU_ST(U(alu_sel)) := False
           REG_ST_W(rd_addr) := False
@@ -1080,7 +1080,8 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           SCB_IU_TAB(i) := EXE
         } .elsewhen((REG_ST_R(rd_addr) === True && rd_wten && ~(rd_addr===rs1_addr || rd_addr===rs2_addr))){
           SCB_IU_TAB(i) := EXE
-        } .elsewhen((alu_sel===B(ALU_UNIT_SEL.LSU) && io.lsu_ex_entry.load_rd_en && (io.stall_for_load || load_wait))){ // todo with read-delay && write-delay(for more cycles)
+        //} .elsewhen((alu_sel===B(ALU_UNIT_SEL.LSU) && io.lsu_ex_entry.load_rd_en && (io.stall_for_load || load_wait))){ // todo with read-delay && write-delay(for more cycles)
+        } .elsewhen((alu_sel===B(ALU_UNIT_SEL.LSU) && io.lsu_ex_entry.load_rd_en && io.stall_for_load)){ // todo with read-delay && write-delay(for more cycles)
           SCB_IU_TAB(i) := EXE
         } .otherwise {
           //SCB_IU_TAB(i) := COMMIT
@@ -1346,7 +1347,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
         //when (io.flush === True && predict_flag === True){  // todo : 现在统一在commit时处理flush，因此保证了该条指令是oldest，不需要predict_flag了
         when (io.flush === True){
           SCB_IU_TAB(i) := IDLE
-          //DEC_VLD(i) := False // add for flush clear TABs
+          DEC_VLD(i) := False // add for flush clear TABs
           ex_wb_req(U(alu_sel))(i) := False
           //instr_end_tab(i) := True
           FU_ST(U(alu_sel)) := False
@@ -1392,11 +1393,14 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           wb_commit_entry_csr_wb_data := io.wb_scb_entry.csr_wb_data
         } .otherwise{
           SCB_IU_TAB(i) := WB
+          ex_wb_req(U(alu_sel))(i) := False // todo: 保证回写的顺序
         }
       }
       is(COMMIT) {
-        when (io.wb_commit_entry.commit_ack === True && io.wb_commit_entry.recv_id === index) {  // 会被sp+1信息顶替
+        //when (io.wb_commit_entry.commit_ack === True && io.wb_commit_entry.recv_id === index) {  // 会被sp+1信息顶替
+        when (io.wb_commit_entry.commit_ack === True && io.wb_commit_entry.recv_id === index && ~(io.stall_for_commit === True && (alu_sel===B(ALU_UNIT_SEL.LSU)) && io.commit_dcache_wten === True)) { // todo with io.store_data_wvalid
           //SCB_IU_TAB(i) := IDLE
+          DEC_VLD(i) := False // add for issue old instr
           instr_end_tab(i) := True
           //when(instr_end_tab(i) === True){
           //  SCB_IU_TAB(i) := IDLE

@@ -129,6 +129,7 @@ class ahb_master extends BlackBox with Global_parameter with Interface_MS{
     val write_entry = slave(cpu_write_interface(CoreConfig()))
     val ahb_entry = master(ahb_interface(CoreConfig()))
     val master_read_id = in UInt(2 bits)
+    //val trans_pend = in Bool()
     /*
     val waddr = in UInt(DataAddrBus bits)
     val we = in Bool()
@@ -227,6 +228,12 @@ class ahb_connect extends BlackBox with Global_parameter with Interface_MS {
     val ahb_entry_S1 = slave(ahb_interface(CoreConfig())) // from core
     val ahb_entry_M1 = master(ahb_bus_interface(CoreConfig()))  // to ITCM
     val ahb_entry_M2 = master(ahb_bus_interface(CoreConfig()))  // to DTCM
+    val ahb_entry_M3 = master(ahb_bus_interface(CoreConfig()))  // to Timer
+    val ahb_entry_M4 = master(ahb_bus_interface(CoreConfig()))  // to PLIC
+    val ahb_entry_M5 = master(ahb_bus_interface(CoreConfig()))  // to Resevered
+    val ahb_entry_M6 = master(ahb_bus_interface(CoreConfig()))  // to AHB2APB Bridge
+    val ahb_entry_M7 = master(ahb_bus_interface(CoreConfig()))  // to Debug
+    //val trans_pend = out Bool()
     //val ahb_entry_S3 = master(ahb_interface(CoreConfig()))  // to Machine Timer
     //val ahb_entry_S4 = master(ahb_interface(CoreConfig()))  // to PLIC
     //val ahb_entry_S5 = master(ahb_interface(CoreConfig()))  // to ahb2apb bridge
@@ -243,6 +250,11 @@ class ahb_connect extends BlackBox with Global_parameter with Interface_MS {
       if(bt.getName().contains("ahb_entry_S1_")) bt.setName(bt.getName().replace("ahb_entry_S1_", "") + "S1")
       if(bt.getName().contains("ahb_entry_M1_")) bt.setName(bt.getName().replace("ahb_entry_M1_", "") + "M1")
       if(bt.getName().contains("ahb_entry_M2_")) bt.setName(bt.getName().replace("ahb_entry_M2_", "") + "M2")
+      if(bt.getName().contains("ahb_entry_M3_")) bt.setName(bt.getName().replace("ahb_entry_M3_", "") + "M3")
+      if(bt.getName().contains("ahb_entry_M4_")) bt.setName(bt.getName().replace("ahb_entry_M4_", "") + "M4")
+      if(bt.getName().contains("ahb_entry_M5_")) bt.setName(bt.getName().replace("ahb_entry_M5_", "") + "M5")
+      if(bt.getName().contains("ahb_entry_M6_")) bt.setName(bt.getName().replace("ahb_entry_M6_", "") + "M6")
+      if(bt.getName().contains("ahb_entry_M7_")) bt.setName(bt.getName().replace("ahb_entry_M7_", "") + "M7")
       if(bt.getName().contains("HREADYM")) bt.setName(bt.getName().replace("HREADYM", "HREADYMUXM"))
 
     })
@@ -251,7 +263,7 @@ class ahb_connect extends BlackBox with Global_parameter with Interface_MS {
   // Execute the function renameIO after the creation of the component
   addPrePopTask(() => renameIO())
 
-  /*
+
   addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/L1AhbMtx/ahb_connect.v")
   addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/L1AhbMtx/L1AhbMtx.v")
   addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/L1AhbMtx/L1AhbMtx_default_slave.v")
@@ -259,8 +271,8 @@ class ahb_connect extends BlackBox with Global_parameter with Interface_MS {
   addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/L1AhbMtx/L1AhbMtxDecS1.v")
   addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/L1AhbMtx/L1AhbMtxInStg.v")
   addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/L1AhbMtx/L1AhbMtxOutStg.v")
-  */
-  addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/L1AhbMtx/ahb_interconnect.v")
+
+  //addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/ahb_interconnect.v")
 
 }
 
@@ -291,6 +303,126 @@ class ahb_to_sram extends BlackBox with Global_parameter with Interface_MS {
   addPrePopTask(() => renameIO())
   addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/ahb_to_sram.sv")
   //addRTLPath("./rtl/RegisterBank.v")
+}
+
+class ahb_to_slave extends BlackBox with Global_parameter with Interface_MS {
+  val io = new Bundle {
+    val clk = in Bool()
+    val rstn = in Bool()
+    val slave_rdy = in Bool()
+    val ahb_entry = slave(ahb_bus_interface(CoreConfig())) // from S1
+    val sram_read_entry = master(dcache_read_interface(CoreConfig()))
+    val sram_write_entry = master(dcache_write_interface(CoreConfig()))
+  }
+  noIoPrefix()
+  // Function used to rename all signals of the blackbox
+  private def renameIO(): Unit = {
+    io.flatten.foreach(bt => {
+      if(bt.getName().contains("clk")) bt.setName(bt.getName().replace("clk", "HCLK"))
+      if(bt.getName().contains("rstn")) bt.setName(bt.getName().replace("rstn", "HRESETn"))
+      if(bt.getName().contains("ahb_entry")) bt.setName(bt.getName().replace("ahb_entry_", ""))
+      if(bt.getName().contains("sram_read_entry_sel")) bt.setName(bt.getName().replace("sram_read_entry_sel", "rsel"))
+      if(bt.getName().contains("sram_write_entry_sel")) bt.setName(bt.getName().replace("sram_write_entry_sel", "wsel"))
+      if(bt.getName().contains("sram_read_entry")) bt.setName(bt.getName().replace("sram_read_entry_", ""))
+      if(bt.getName().contains("sram_write_entry")) bt.setName(bt.getName().replace("sram_write_entry_", ""))
+    })
+  }
+
+  // Execute the function renameIO after the creation of the component
+  addPrePopTask(() => renameIO())
+  addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/ahb_to_slave.sv")
+}
+
+class ahb2apb_bridge extends BlackBox with Global_parameter with Interface_MS {
+  val io = new Bundle {
+    val clk = in Bool()
+    val rstn = in Bool()
+    val ahb_entry = slave(ahb_bus_interface(CoreConfig())) // from S1
+    val pclk = in Bool()
+    val prstn = in Bool()
+    val pclken = in Bool()
+    val apb_entry_M1 = master(apb_bus_interface(CoreConfig()))
+    val apb_entry_M2 = master(apb_bus_interface(CoreConfig()))
+    val apb_entry_M3 = master(apb_bus_interface(CoreConfig()))
+    val apb_entry_M4 = master(apb_bus_interface(CoreConfig()))
+    val apb_entry_M5 = master(apb_bus_interface(CoreConfig()))
+  }
+  noIoPrefix()
+  // Function used to rename all signals of the blackbox
+  private def renameIO(): Unit = {
+    io.flatten.foreach(bt => {
+      if(bt.getName().contains("pclk")) bt.setName(bt.getName().replace("pclk", "PCLK"))
+      if(bt.getName().contains("prstn")) bt.setName(bt.getName().replace("prstn", "PRESETn"))
+      if(bt.getName().contains("clk")) bt.setName(bt.getName().replace("clk", "HCLK"))
+      if(bt.getName().contains("rstn")) bt.setName(bt.getName().replace("rstn", "HRESETn"))
+      if(bt.getName().contains("ahb_entry")) bt.setName(bt.getName().replace("ahb_entry_", ""))
+      if(bt.getName().contains("apb_entry_M1_")) bt.setName(bt.getName().replace("apb_entry_M1_", "") + "M1")
+      if(bt.getName().contains("apb_entry_M2_")) bt.setName(bt.getName().replace("apb_entry_M2_", "") + "M2")
+      if(bt.getName().contains("apb_entry_M3_")) bt.setName(bt.getName().replace("apb_entry_M3_", "") + "M3")
+      if(bt.getName().contains("apb_entry_M4_")) bt.setName(bt.getName().replace("apb_entry_M4_", "") + "M4")
+      if(bt.getName().contains("apb_entry_M5_")) bt.setName(bt.getName().replace("apb_entry_M5_", "") + "M5")
+    })
+  }
+
+  // Execute the function renameIO after the creation of the component
+  addPrePopTask(() => renameIO())
+  addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/ahb2apb_bridge.sv")
+}
+
+class apb_to_slave extends BlackBox with Global_parameter with Interface_MS {
+  val io = new Bundle {
+    val clk = in Bool()
+    val rstn = in Bool()
+    val slave_rdy = in Bool()
+    val apb_entry = slave(apb_bus_interface(CoreConfig())) // from S1
+    val sram_read_entry = master(dcache_read_interface(CoreConfig()))
+    val sram_write_entry = master(dcache_write_interface(CoreConfig()))
+  }
+  noIoPrefix()
+  // Function used to rename all signals of the blackbox
+  private def renameIO(): Unit = {
+    io.flatten.foreach(bt => {
+      if(bt.getName().contains("clk")) bt.setName(bt.getName().replace("clk", "PCLK"))
+      if(bt.getName().contains("rstn")) bt.setName(bt.getName().replace("rstn", "PRESETn"))
+      if(bt.getName().contains("apb_entry")) bt.setName(bt.getName().replace("apb_entry_", ""))
+      if(bt.getName().contains("sram_read_entry_sel")) bt.setName(bt.getName().replace("sram_read_entry_sel", "rsel"))
+      if(bt.getName().contains("sram_write_entry_sel")) bt.setName(bt.getName().replace("sram_write_entry_sel", "wsel"))
+      if(bt.getName().contains("sram_read_entry")) bt.setName(bt.getName().replace("sram_read_entry_", ""))
+      if(bt.getName().contains("sram_write_entry")) bt.setName(bt.getName().replace("sram_write_entry_", ""))
+    })
+  }
+
+  // Execute the function renameIO after the creation of the component
+  addPrePopTask(() => renameIO())
+  addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/amba/apb_to_slave.sv") // todo
+}
+
+
+class timer extends BlackBox with Global_parameter with Interface_MS {
+  val io = new Bundle {
+    val clk = in Bool()
+    val rstn = in Bool()
+    val slave_rdy = out Bool()
+    val timer_int = out Bool()
+    val read_entry = slave(dcache_read_interface(CoreConfig()))
+    val write_entry = slave(dcache_write_interface(CoreConfig()))
+  }
+  noIoPrefix()
+  // Function used to rename all signals of the blackbox
+  private def renameIO(): Unit = {
+    io.flatten.foreach(bt => {
+      if(bt.getName().contains("read_entry_sel")) bt.setName(bt.getName().replace("read_entry_sel", "rsel"))
+      if(bt.getName().contains("write_entry_sel")) bt.setName(bt.getName().replace("write_entry_sel", "wsel"))
+      if(bt.getName().contains("read_entry")) bt.setName(bt.getName().replace("read_entry_", ""))
+      if(bt.getName().contains("write_entry")) bt.setName(bt.getName().replace("write_entry_", ""))
+    })
+  }
+
+  // Execute the function renameIO after the creation of the component
+  addPrePopTask(() => renameIO())
+  addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/peripheral/timer.sv")
+  addRTLPath("D:/Learn/IC/project/Spinalhdl/CPU/src/main/rtl/peripheral/counter.sv")
+
 }
 
 class ahb2itcm extends BlackBox with Global_parameter with Interface_MS {
@@ -821,11 +953,15 @@ class dcache extends Component with Global_parameter with Interface_MS {
         io.dcache_read_entry.rdata := 0
       }
 
+  /*
   when(io.dcache_read_entry.re === True || io.dcache_write_entry.we === True){
     io.dcache_rdy := True
   } .otherwise{
     io.dcache_rdy := False
   }
+     */
+
+  io.dcache_rdy := True
 
 
   /*
@@ -2582,7 +2718,8 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   stall_for_ifu_r_d1 := mmu.io.stall_for_ifu_r
   //val stall_for_pc = stall_for_ifu_r_d1 || mmu.io.stall_for_ifu_r // todo with outstanding
   val stall_for_pc = mmu.io.stall_for_ifu_r
-  pc_gen.io.icache_rdy := instr_realign.io.icache_entry.re && ~stall_for_pc//~mmu.io.stall_for_ifu_r
+  //pc_gen.io.icache_rdy := instr_realign.io.icache_entry.re && ~stall_for_pc//~mmu.io.stall_for_ifu_r
+  pc_gen.io.icache_rdy := ~stall_for_pc
   pc_gen.io.ras_target := ras.io.ras_target
   pc_gen.io.predict_btb_entry connect btb.io.predict_btb_entry
   pc_gen.io.predict_bht_entry connect bht.io.predict_bht_entry
@@ -2617,6 +2754,7 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   instr_realign.io.instr_queue_not_full_outstanding := instr_queue.io.instr_queue_not_full_outstanding
   instr_realign.io.pc_next:= pc_gen.io.pc
   instr_realign.io.pc_now := pc_gen.io.pc_now
+  //instr_realign.io.pc_now := pc_gen.io.pc
   instr_realign.io.outstanding_flag := pc_gen.io.outstanding_flag
   btb.io.clk := io.clk
   btb.io.rstn := io.rstn
@@ -2780,6 +2918,9 @@ class cutecore extends Component {
   val io = new Bundle {
     val clk = in Bool()
     val rstn = in Bool()
+    val pclk = in Bool()
+    val prstn = in Bool()
+    val pclken = in Bool()
   }
 
   // todo with crgu
@@ -2809,6 +2950,13 @@ class cutecore extends Component {
   val ahb_connect = new ahb_connect
   val ahb2itcm = new ahb_to_sram
   val ahb2dtcm = new ahb_to_sram
+  val ahb2slave_M3 = new ahb_to_slave
+  val ahb2slave_M4 = new ahb_to_slave
+  val ahb2slave_M5 = new ahb_to_slave
+  val ahb2slave_M6 = new ahb2apb_bridge
+  val ahb2slave_M7 = new ahb_to_slave
+  val timer = new timer
+  val apb2slave_M1 = new apb_to_slave
 
 
   // 建立连接关系 //
@@ -2829,6 +2977,47 @@ class cutecore extends Component {
   ahb2itcm.io.sram_rdy := icache_inst.io.icache_rdy
   ahb2dtcm.io.sram_rdy := dcache_inst.io.dcache_rdy
 
+  // todo 后续把timer改挂到apb上
+  /*
+  ahb2slave_M3.io.sram_read_entry connect timer.io.read_entry
+  ahb2slave_M3.io.sram_write_entry connect timer.io.write_entry
+  ahb2slave_M3.io.slave_rdy := timer.io.slave_rdy
+  timer.io.clk := io.clk
+  timer.io.rstn := io.rstn
+  */
+  ahb2slave_M3.io.sram_read_entry.rdata := 0
+  ahb2slave_M3.io.slave_rdy := True
+
+  ahb2slave_M6.io.apb_entry_M1 connect apb2slave_M1.io.apb_entry
+  apb2slave_M1.io.sram_read_entry connect timer.io.read_entry
+  apb2slave_M1.io.sram_write_entry connect timer.io.write_entry
+  apb2slave_M1.io.slave_rdy := timer.io.slave_rdy
+  timer.io.clk := io.pclk
+  timer.io.rstn := io.prstn
+
+
+  ahb2slave_M4.io.sram_read_entry.rdata := 0
+  ahb2slave_M4.io.slave_rdy := True
+
+  ahb2slave_M5.io.sram_read_entry.rdata := 0
+  ahb2slave_M5.io.slave_rdy := True
+
+
+  //ahb2slave_M6.io.apb_entry_M1.PREADY := True
+  //ahb2slave_M6.io.apb_entry_M1.PRDATA := 0
+  ahb2slave_M6.io.apb_entry_M2.PREADY := True
+  ahb2slave_M6.io.apb_entry_M2.PRDATA := 0
+  ahb2slave_M6.io.apb_entry_M3.PREADY := True
+  ahb2slave_M6.io.apb_entry_M3.PRDATA := 0
+  ahb2slave_M6.io.apb_entry_M4.PREADY := True
+  ahb2slave_M6.io.apb_entry_M4.PRDATA := 0
+  ahb2slave_M6.io.apb_entry_M5.PREADY := True
+  ahb2slave_M6.io.apb_entry_M5.PRDATA := 0
+
+
+  ahb2slave_M7.io.sram_read_entry.rdata := 0
+  ahb2slave_M7.io.slave_rdy := True
+
   //black box
   ahb_master.io.clk := io.clk
   ahb_master.io.rstn := io.rstn
@@ -2846,10 +3035,34 @@ class cutecore extends Component {
   ahb2itcm.io.rstn := io.rstn
   ahb2dtcm.io.clk := io.clk
   ahb2dtcm.io.rstn := io.rstn
+  ahb2slave_M3.io.clk := io.clk
+  ahb2slave_M3.io.rstn := io.rstn
+  ahb2slave_M4.io.clk := io.clk
+  ahb2slave_M4.io.rstn := io.rstn
+  ahb2slave_M5.io.clk := io.clk
+  ahb2slave_M5.io.rstn := io.rstn
+  ahb2slave_M6.io.clk := io.clk
+  ahb2slave_M6.io.rstn := io.rstn
+  ahb2slave_M6.io.pclk := io.pclk
+  ahb2slave_M6.io.prstn := io.prstn
+  ahb2slave_M6.io.pclken := io.pclken
+  ahb2slave_M7.io.clk := io.clk
+  ahb2slave_M7.io.rstn := io.rstn
+
+
+  apb2slave_M1.io.clk := io.pclk
+  apb2slave_M1.io.rstn := io.prstn
+
   ahb_connect.io.ahb_entry_S1 connect ahb_master.io.ahb_entry
   ahb_connect.io.ahb_entry_M1 connect ahb2itcm.io.ahb_entry
   ahb_connect.io.ahb_entry_M2 connect ahb2dtcm.io.ahb_entry
+  ahb_connect.io.ahb_entry_M3 connect ahb2slave_M3.io.ahb_entry
+  ahb_connect.io.ahb_entry_M4 connect ahb2slave_M4.io.ahb_entry
+  ahb_connect.io.ahb_entry_M5 connect ahb2slave_M5.io.ahb_entry
+  ahb_connect.io.ahb_entry_M6 connect ahb2slave_M6.io.ahb_entry
+  ahb_connect.io.ahb_entry_M7 connect ahb2slave_M7.io.ahb_entry
 
+  //ahb_master.io.trans_pend := ahb_connect.io.trans_pend
 
 }
 
@@ -3351,6 +3564,27 @@ trait Interface_MS extends Global_parameter {
     }
   }
 
+  // apb bus interface
+  case class apb_bus_interface(config: CoreConfig) extends Bundle with IMasterSlave {
+    // Global //
+    //val hclk = in Bool()
+    //val hresetn = in Bool()
+
+    val PADDR = UInt(DataAddrBus bits)
+    val PWRITE = Bool()
+    val PWDATA = UInt(DataBus bits)
+    val PSEL = Bool()
+    val PENABLE = Bool()
+
+    val PREADY = Bool()
+    val PRDATA = UInt(DataBus bits)
+
+    override def asMaster(): Unit = {
+      out(PADDR,PWRITE,PWDATA,PSEL,PENABLE)
+      in(PREADY,PRDATA)
+    }
+  }
+
   // cpu read interface
   case class cpu_read_interface(config: CoreConfig) extends Bundle with IMasterSlave {
     val raddr = UInt(DataAddrBus bits)
@@ -3359,10 +3593,12 @@ trait Interface_MS extends Global_parameter {
     val sel = UInt(MemSelBus bits)
     val rvalid_ifu = Bool()
     val rvalid_lsu = Bool()
+    val rready_ifu = Bool()
+    val rready_lsu = Bool()
 
     override def asMaster(): Unit = {
       out(raddr,re,sel)
-      in(rdata,rvalid_ifu,rvalid_lsu)
+      in(rdata,rvalid_ifu,rvalid_lsu,rready_ifu,rready_lsu)
     }
   }
 

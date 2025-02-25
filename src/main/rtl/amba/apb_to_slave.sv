@@ -83,7 +83,7 @@ assign PRDATA = rdata;
 
 assign PSLVERR = 1'b0;
 
-
+/*
 always_ff@(posedge PCLK or negedge PRESETn) begin
     if(~PRESETn)
         PREADY <= 1'b0;
@@ -92,7 +92,8 @@ always_ff@(posedge PCLK or negedge PRESETn) begin
     else 
         PREADY <= slave_rdy;
 end
-
+*/
+assign PREADY = (state_c == IDLE)?  1'b0 : slave_rdy;
 
 //assign HREADYOUT = slave_rdy;
 

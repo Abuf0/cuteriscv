@@ -130,6 +130,13 @@ always@(posedge HCLK or negedge HRESETn) begin
     else if(transfer_on && HWRITE)
         waddr_lat <= HADDR;
 end
+logic [2:0] hsize_lat;
+always@(posedge HCLK or negedge HRESETn) begin
+    if(~HRESETn)
+        hsize_lat <= 'd0;
+    else if(transfer_on && HWRITE)
+        hsize_lat <= HSIZE;
+end
 
 assign we = (state_c == MEM_W);
 assign re = (state_n == MEM_R);
@@ -160,11 +167,11 @@ end
 //        wsel <= 'b0;
 //    else if(state_n == MEM_W) begin
 always@(*) begin
-        if(HSIZE==3'b000) begin
-            wsel <= {4'b0001 << HADDR[1:0]};
+        if(hsize_lat==3'b000) begin
+            wsel <= {4'b0001 << waddr_lat[1:0]};
         end
-        else if(HSIZE==3'b001) begin
-            wsel <= {4'b0011 << HADDR[1:0]};
+        else if(hsize_lat==3'b001) begin
+            wsel <= {4'b0011 << waddr_lat[1:0]};
         end
         else begin
             wsel <= 4'b1111;

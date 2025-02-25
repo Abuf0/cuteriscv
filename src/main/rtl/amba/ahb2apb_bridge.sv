@@ -119,7 +119,7 @@ assign prdata_mux = PSELM1?  PRDATAM1 :
                     PSELM4?  PRDATAM4 :
                     PSELM5?  PRDATAM5 : 32'bx;
 
-typedef enum logic [1:0] {IDLE,SETUP,ACCESS} state_t;
+typedef enum logic [1:0] {IDLE,SETUP,ACCESS,WAIT} state_t;
 state_t state_c,state_n;
 always_ff@(posedge HCLK or negedge HRESETn) begin
     if(~HRESETn)
@@ -132,9 +132,10 @@ always@(*) begin
     state_n = IDLE;
     case(state_c)
         IDLE:   state_n = apb_sel?   SETUP:IDLE;
-        SETUP:  state_n = PCLKen? ACCESS:SETUP;
+        SETUP:  state_n = (PCLKen)? ACCESS : SETUP;
         //ACCESS: state_n = (HSEL)?   ACCESS:IDLE;
-        ACCESS: state_n = (pready_mux && PCLKen)?   (apb_sel?  SETUP : IDLE):ACCESS;
+        ACCESS: state_n = (pready_mux && PCLKen)?   (apb_sel?  WAIT : IDLE):ACCESS;
+        WAIT:   state_n = (apb_sel?  SETUP : IDLE);
         default:state_n = IDLE;
     endcase
 end
@@ -169,13 +170,16 @@ always_ff@(posedge PCLK or negedge PRESETn) begin
     end
     else if(state_c == SETUP)  begin    // Lock AHB information
         PSEL <= 1'b1;
-        PENABLE <= 1'B0;
+        PENABLE <= 1'b0;
         PADDR  <= haddr_lat; 
         PWRITE <= hwrite_lat;
         PWDATA <= hwdata_lat;
     end
     else if(state_c == ACCESS) begin
         PENABLE <= 1'b1;
+    end
+    else if(state_c == WAIT) begin
+      PENABLE <= 1'b0;
     end
 end
 
@@ -216,7 +220,7 @@ always_ff@(posedge HCLK or negedge HRESETn) begin
 end
 */
 //assign HREADYOUT = PCLKen & prdata_mux & (state_n == SETUP);
-assign HREADYOUT =  (state_c == IDLE)?   1'b1 :
+assign HREADYOUT =  (state_c == IDLE || state_c == WAIT)?   1'b1 :
                     (state_c == SETUP)?  1'b0 : (PCLKen & pready_mux);
 
 assign HRESP   = 1'b0;

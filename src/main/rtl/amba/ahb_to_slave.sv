@@ -1,4 +1,4 @@
-module ahb_to_sram
+module ahb_to_slave
 #(
     parameter ADDR_WIDTH    = 32   ,   // 10~64
     parameter DATA_WIDTH    = 32  ,   // 8,16,32,64,128,256,512,1024
@@ -11,7 +11,7 @@ module ahb_to_sram
     input                           HCLK        ,
     input                           HRESETn     ,
     // ------ From SRAM --------//
-    input                           sram_rdy    ,
+    input                           slave_rdy   ,
     input [DATA_WIDTH-1:0]          rdata       ,
     // ------ To SRAM ----------//
     output logic [ADDR_WIDTH-1:0]   raddr       ,  
@@ -24,7 +24,7 @@ module ahb_to_sram
     // ------ From master ------ //
     input [ADDR_WIDTH-1:0]          HADDR       ,
     input [HBURST_WIDTH-1:0]        HBURST      ,
-    input                           HMASTLOCK ,
+    input                           HMASTLOCK   ,
     input [HPROT_WIDTH-1:0]         HPROT       ,
     input [2:0]                     HSIZE       ,
     input [1:0]                     HTRANS      ,
@@ -38,21 +38,15 @@ module ahb_to_sram
     output logic                    HREADYOUT   ,
     output logic                    HRESP       
 );
-// AHB的从机一般是一些高速设备，比如memory之类；
-// 此处代码假设slave是memory
-// 以下定义了mem接口
-/*
-    we
-    mem_ce
-    raddr
-    wdata
-    rdata
-*/
-logic mem_ce;
+
+
+
+
 logic transfer_on;
-assign transfer_on = HSEL && HREADY && HTRANS[1]; 
-//assign transfer_on = HSEL && HTRANS[1];   // HTRANS = NONSEQ/SEQ
-typedef enum logic [1:0] {IDLE,MEM_W,MEM_R} state_t;
+//assign transfer_on = HSEL && HREADY && HTRANS[1];   // HTRANS = NONSEQ/SEQ
+assign transfer_on = HSEL && HTRANS[1] & HREADY;   // HTRANS = NONSEQ/SEQ
+
+typedef enum logic [1:0] {IDLE,SLV_W,SLV_R} state_t;
 state_t state_c,state_n;
 always_ff@(posedge HCLK or negedge HRESETn) begin
     if(~HRESETn)
@@ -67,61 +61,27 @@ always@(*) begin
         state_n = IDLE;
         case(state_c) 
             IDLE: begin
-                state_n = (transfer_on && HWRITE)?  MEM_W :
-                          (transfer_on && ~HWRITE)? MEM_R :
+                state_n = (transfer_on && HWRITE)?  SLV_W :
+                          (transfer_on && ~HWRITE)? SLV_R :
                           IDLE;
             end
-            MEM_W: begin
-                state_n = transfer_on?    (HWRITE?    MEM_W : MEM_R) : IDLE;
+            SLV_W: begin
+                state_n = transfer_on?    (HWRITE?    SLV_W : SLV_R) : IDLE;
             end
-            MEM_R: begin
-                state_n = transfer_on?    (HWRITE?    MEM_W : MEM_R) : IDLE;
+            SLV_R: begin
+                state_n = transfer_on?    (HWRITE?    SLV_W : SLV_R) : IDLE;
             end
             default:    state_n = IDLE;
         endcase
     end
 end
 /*
-always_ff@(posedge HCLK or negedge HRESETn) begin
-    if(~HRESETn)
-        mem_ce <= 1'b0;
-    else if(state_n == MEM_W | state_n == MEM_R)
-        mem_ce <= 1'b1;
-    else 
-        mem_ce <= 1'b0;
-end
-always_ff@(posedge HCLK or negedge HRESETn) begin
-    if(~HRESETn)
-        we <= 1'b0;
-    else if(state_n == MEM_W)
-        we <= 1'b1;
-    else 
-        we <= 1'b0;
-end
-always_ff@(posedge HCLK or negedge HRESETn) begin
-    if(~HRESETn)
-        re <= 1'b0;
-    else if(state_n == MEM_R)
-        re <= 1'b1;
-    else 
-        re <= 1'b0;
-end
-always_ff@(posedge HCLK or negedge HRESETn) begin
-    if(~HRESETn)
-        raddr <= 'b0;
-    else if(state_n == MEM_R)
-        raddr <= HADDR;
-    //else 
-    //    raddr <= 'b0;
-end
-always_ff@(posedge HCLK or negedge HRESETn) begin
-    if(~HRESETn)
-        rsel <= 4'b1111;
-    else if(state_n == MEM_R)
-        rsel <= 4'b1111;
-    else 
-        rsel <= 'b0;
-end
+assign we = (state_n == SLV_W);
+assign re = (state_n == SLV_R);
+assign raddr = (state_n == SLV_R)?  HADDR : 'd0;
+assign rsel = (state_n == SLV_R)?   4'b1111 : 'd0;
+assign waddr = {HADDR[ADDR_WIDTH-1:2],2'b0};
+assign wdata = HWDATA;
 */
 logic [ADDR_WIDTH-1:0] waddr_lat;
 always@(posedge HCLK or negedge HRESETn) begin
@@ -138,10 +98,10 @@ always@(posedge HCLK or negedge HRESETn) begin
         hsize_lat <= HSIZE;
 end
 
-assign we = (state_c == MEM_W);
-assign re = (state_n == MEM_R);
-assign raddr = (state_n == MEM_R)?  HADDR : 'd0;
-assign rsel = (state_n == MEM_R)?   4'b1111 : 'd0;
+assign we = (state_c == SLV_W);
+assign re = (state_n == SLV_R);
+assign raddr = (state_n == SLV_R)?  HADDR : 'd0;
+assign rsel = (state_n == SLV_R)?   4'b1111 : 'd0;
 //assign waddr = {HADDR[ADDR_WIDTH-1:2],2'b0};
 assign waddr = {waddr_lat[ADDR_WIDTH-1:2],2'b0};
 assign wdata = HWDATA;
@@ -152,20 +112,6 @@ always@(negedge HCLK) begin
     end
 end
 
-/*
-always_ff@(posedge HCLK or negedge HRESETn) begin
-    if(~HRESETn)
-        waddr <= 'b0;
-    else if(state_n == MEM_W)
-        waddr <= {HADDR[ADDR_WIDTH-1:2],2'b0};
-    //else 
-    //    waddr <= 'b0;
-end
-*/
-//always_ff@(posedge HCLK or negedge HRESETn) begin
-//    if(~HRESETn)
-//        wsel <= 'b0;
-//    else if(state_n == MEM_W) begin
 always@(*) begin
         if(hsize_lat==3'b000) begin
             wsel <= {4'b0001 << waddr_lat[1:0]};
@@ -177,11 +123,8 @@ always@(*) begin
             wsel <= 4'b1111;
         end
     end
-    //else
-    //    wsel <= 'b0;
-//end
 
-
+//assign HRDATA = rdata;
 always_ff@(posedge HCLK or negedge HRESETn) begin
     if(~HRESETn)
         HRDATA <= 'b0;
@@ -189,21 +132,17 @@ always_ff@(posedge HCLK or negedge HRESETn) begin
         HRDATA <= rdata;
 end
 
-logic [DATA_WIDTH-1:0] rdata_merge;
-
-//assign HRDATA = rdata;
-//assign HRDATA = rdata;
 assign HRESP = 1'b0;
 
 
 always_ff@(posedge HCLK or negedge HRESETn) begin
     if(~HRESETn)
         HREADYOUT <= 1'b1;
-    else //if(state_c == MEM_W | state_c == MEM_R)    // can add condition to extend transfer
-        HREADYOUT <= sram_rdy;
+    else 
+        HREADYOUT <= slave_rdy;
 end
 
 
-//assign HREADYOUT = (state_c == MEM_W | state_c == MEM_R) && sram_rdy;
+//assign HREADYOUT = slave_rdy;
 
 endmodule

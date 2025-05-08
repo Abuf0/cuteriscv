@@ -531,6 +531,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   val REG_ST_R = Vec(Reg(Bool( )) init(False),REG_NUM) // r,W todo to wire
   val REG_ST_W = Vec(Reg(Bool( )) init(False),REG_NUM) // r,W todo to wire
   val REG_ST_NW = Vec(Reg(Bool( )) init(False),REG_NUM) // wb new w todo to wire
+  val REG_ST_LDR = Vec(Reg(Bool( )) init(False),REG_NUM)  // load need read reg
   //val REG_ST = Vec(Bits(2 bit),REG_NUM) // r,W todo to wire
   //REG_ST := Vec.fill(REG_NUM)(B"00")
   val CSR_ST_R = Vec(Reg(Bool( )) init(False),CSR_NUM)
@@ -792,6 +793,10 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           CSR_ST_R(csr_addr) := False
           CSR_ST_W(csr_addr) := False
           CSR_ST_NW(csr_addr) := False
+          when(alu_sel === B(ALU_UNIT_SEL.LSU)) { // todo fix bug
+            REG_ST_LDR(rs1_addr) := False
+            REG_ST_LDR(rs2_addr) := False
+          }
         }.elsewhen((REG_ST_NW(rs1_addr) === True && fwb_flag(rs1_addr) === False && rs1_rden && ~(rs1_addr === rd_addr && rd_wten)) || (REG_ST_NW(rs2_addr) === True && fwb_flag(rs2_addr) === False && rs2_rden && ~(rs2_addr === rd_addr && rd_wten))) { // RAW issue --> fwb
           //.elsewhen ((REG_ST_W(rs1_addr) === True && fwb_flag(rs1_addr) === False && rs1_rden) || (REG_ST_W(rs2_addr) === True && fwb_flag(rs2_addr) === False && rs2_rden && )) {v
           SCB_IU_TAB(i) := ISSUE
@@ -802,6 +807,12 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           }
           when(rs2_rden) {
             REG_ST_R(rs2_addr) := rs2_rden
+          }
+          when(alu_sel === B(ALU_UNIT_SEL.LSU) && rs1_rden) { // todo fix bug
+            REG_ST_LDR(rs1_addr) := rs1_rden
+          }
+          when(alu_sel === B(ALU_UNIT_SEL.LSU) && rs2_rden) { // todo fix bug
+            REG_ST_LDR(rs2_addr) := rs2_rden
           }
           when(csr_rden) {
             CSR_ST_R(csr_addr) := csr_rden
@@ -824,7 +835,10 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           CSR_ST_NW(csr_addr) := False
           CSR_ST_R(csr_addr) := False
           CSR_ST_R(csr_addr) := False
-
+          when(alu_sel === B(ALU_UNIT_SEL.LSU)) { // todo fix bug
+            REG_ST_LDR(rs1_addr) := False
+            REG_ST_LDR(rs2_addr) := False
+          }
         }.otherwise {
           SCB_IU_TAB(i) := EXE // todo
           switch(alu_sel) {
@@ -1050,7 +1064,10 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           CSR_ST_R(csr_addr) := False
           CSR_ST_W(csr_addr) := False
           CSR_ST_NW(csr_addr) := False
-
+          when(alu_sel === B(ALU_UNIT_SEL.LSU)) { // todo fix bug
+            REG_ST_LDR(rs1_addr) := False
+            REG_ST_LDR(rs2_addr) := False
+          }
           ex_wb_entry_instr(U(alu_sel)) := U"0".resized
           ex_wb_entry_pc(U(alu_sel)) := U"0".resized
           ex_wb_entry_reg_wb_en(U(alu_sel)) := False
@@ -1078,7 +1095,8 @@ case class scoreboard () extends Component with Global_parameter with Interface_
 
         } .elsewhen ((alu_sel===B(ALU_UNIT_SEL.MULU1) || alu_sel===B(ALU_UNIT_SEL.MULU2) || alu_sel===B(ALU_UNIT_SEL.DIVU)) && FU_ST(U(alu_sel)) === True) {  // todo
           SCB_IU_TAB(i) := EXE
-        } .elsewhen((REG_ST_R(rd_addr) === True && rd_wten && ~(rd_addr===rs1_addr || rd_addr===rs2_addr))){
+        //} .elsewhen((REG_ST_R(rd_addr) === True && rd_wten && ~(rd_addr===rs1_addr || rd_addr===rs2_addr))){
+        } .elsewhen((REG_ST_R(rd_addr) === True && rd_wten && ((~(rd_addr===rs1_addr || rd_addr===rs2_addr)) || (REG_ST_LDR(rd_addr) && (alu_sel=/=B(ALU_UNIT_SEL.LSU)))))){  // todo fix bug
           SCB_IU_TAB(i) := EXE
         //} .elsewhen((alu_sel===B(ALU_UNIT_SEL.LSU) && io.lsu_ex_entry.load_rd_en && (io.stall_for_load || load_wait))){ // todo with read-delay && write-delay(for more cycles)
         } .elsewhen((alu_sel===B(ALU_UNIT_SEL.LSU) && io.lsu_ex_entry.load_rd_en && io.stall_for_load)){ // todo with read-delay && write-delay(for more cycles)
@@ -1358,6 +1376,10 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           CSR_ST_NW(csr_addr) := False
           CSR_ST_R(csr_addr) := False
           CSR_ST_R(csr_addr) := False
+          when(alu_sel === B(ALU_UNIT_SEL.LSU)) { // todo fix bug
+            REG_ST_LDR(rs1_addr) := False
+            REG_ST_LDR(rs2_addr) := False
+          }
 
         } .elsewhen(((i === rptr_real) || (i=/= rptr_real && last_iu_state === IDLE)) && last_iu_state =/= COMMIT) {  // todo : 保证最旧的指令才能commit，按顺序提交
           //. elsewhen(((i === rptr_real) || (i=/= rptr_real && last_iu_state === IDLE)) && io.ex_wb_entry.commit_ack=== True && last_iu_state =/= COMMIT) {
@@ -1423,6 +1445,10 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           CSR_ST_R(csr_addr) := False
           CSR_ST_W(csr_addr) := False
           //instr_real_end_tab(i) := True
+          when(alu_sel === B(ALU_UNIT_SEL.LSU)) { // todo fix bug
+            REG_ST_LDR(rs1_addr) := False
+            REG_ST_LDR(rs2_addr) := False
+          }
         }.otherwise {
           SCB_IU_TAB(i) := COMMIT
         }

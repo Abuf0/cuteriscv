@@ -491,34 +491,40 @@ class bht extends Component with Global_parameter with Interface_MS {
   val Strongly_taken = B"11"
   val taken_fsm = Vec(Bits(2 bits),(1<<12)) // pc offset : 12bit
 
+  //val resolved_bht_valid_d1 = Reg(Bool()) init(False)
+  //resolved_bht_valid_d1 := io.resolved_bht_entry.bht_valid
+  //val resolved_bht_valid_pos = io.resolved_bht_entry.bht_valid && ~resolved_bht_valid_d1
+  val resolved_bht_valid_pos = io.resolved_bht_entry.bht_valid
+
+
   for(i <- 0 until (1<<12)) {
     val fsm = Reg(Bits(2 bits)) init (Weakly_taken)
     switch(fsm){
       is(Strongly_taken){
-        when(io.resolved_bht_entry.bht_valid === True && io.resolved_bht_entry.bht_taken === True && io.resolved_bht_entry.pc(11 downto 0) ===i){
+        when(resolved_bht_valid_pos === True && io.resolved_bht_entry.bht_taken === True && io.resolved_bht_entry.pc(11 downto 0) ===i){
           fsm := Strongly_taken
-        } .elsewhen(io.resolved_bht_entry.bht_valid === True && io.resolved_bht_entry.bht_taken === False && io.resolved_bht_entry.pc(11 downto 0) ===i){
+        } .elsewhen(resolved_bht_valid_pos === True && io.resolved_bht_entry.bht_taken === False && io.resolved_bht_entry.pc(11 downto 0) ===i){
           fsm := Weakly_taken
         } .otherwise{}
       }
       is(Weakly_taken){
-        when(io.resolved_bht_entry.bht_valid === True && io.resolved_bht_entry.bht_taken === True && io.resolved_bht_entry.pc(11 downto 0) ===i){
+        when(resolved_bht_valid_pos === True && io.resolved_bht_entry.bht_taken === True && io.resolved_bht_entry.pc(11 downto 0) ===i){
           fsm := Strongly_taken
-        } .elsewhen(io.resolved_bht_entry.bht_valid === True && io.resolved_bht_entry.bht_taken === False && io.resolved_bht_entry.pc(11 downto 0) ===i){
+        } .elsewhen(resolved_bht_valid_pos === True && io.resolved_bht_entry.bht_taken === False && io.resolved_bht_entry.pc(11 downto 0) ===i){
           fsm := Weakly_not_taken
         } .otherwise{}
       }
       is(Weakly_not_taken){
-        when(io.resolved_bht_entry.bht_valid === True && io.resolved_bht_entry.bht_taken === True && io.resolved_bht_entry.pc(11 downto 0) ===i){
+        when(resolved_bht_valid_pos === True && io.resolved_bht_entry.bht_taken === True && io.resolved_bht_entry.pc(11 downto 0) ===i){
           fsm := Weakly_taken
-        } .elsewhen(io.resolved_bht_entry.bht_valid === True && io.resolved_bht_entry.bht_taken === False && io.resolved_bht_entry.pc(11 downto 0) ===i){
+        } .elsewhen(resolved_bht_valid_pos === True && io.resolved_bht_entry.bht_taken === False && io.resolved_bht_entry.pc(11 downto 0) ===i){
           fsm := Strongly_not_taken
         } .otherwise{}
       }
       is(Strongly_not_taken){
-        when(io.resolved_bht_entry.bht_valid === True && io.resolved_bht_entry.bht_taken === True && io.resolved_bht_entry.pc(11 downto 0) ===i){
+        when(resolved_bht_valid_pos === True && io.resolved_bht_entry.bht_taken === True && io.resolved_bht_entry.pc(11 downto 0) ===i){
           fsm := Weakly_not_taken
-        } .elsewhen(io.resolved_bht_entry.bht_valid === True && io.resolved_bht_entry.bht_taken === False && io.resolved_bht_entry.pc(11 downto 0) ===i){
+        } .elsewhen(resolved_bht_valid_pos === True && io.resolved_bht_entry.bht_taken === False && io.resolved_bht_entry.pc(11 downto 0) ===i){
           fsm := Strongly_not_taken
         } .otherwise{}
       }
@@ -553,35 +559,50 @@ class btb extends Component with Global_parameter with Interface_MS {
   }
   val btb_lut = Vec(Reg(UInt((InstAddrBus+InstAddrBus+1) bits)) init (0),BTB_PAGE_NUM)
 
+  io.predict_btb_entry.btb_valid := False
+  io.predict_btb_entry.btb_target := 0
+  io.predict_btb_entry.btb_taken := False
+
+    //val replace_index = U"0"  // TODO with LRU/LFU replace strategy
+  val replace_index = Reg(UInt(BTB_PAGE_WIDTH bits)) init(0)
+  val replace_index_last = Reg(UInt(BTB_PAGE_WIDTH bits)) init(0)
+
+  val hit_vec = Vec(Bool(),BTB_PAGE_NUM)
+  val hit = hit_vec.sContains(True)
+
   for(i <- 0 until BTB_PAGE_NUM) {
     val target_pc = btb_lut(i)(InstAddrBus downto 1)
-    val btb_index = btb_lut(i)(InstAddrBus+InstAddrBus downto InstAddrBus)
+    val btb_index = btb_lut(i)(InstAddrBus+InstAddrBus downto InstAddrBus+1)
     val btb_taken = btb_lut(i)(0)
     when(io.pc_valid === True && (io.if_branch_predict.is_branch === True || io.if_branch_predict.is_call === True || io.if_branch_predict.is_jump === True)){
       when(io.if_branch_predict.pc === btb_index){
         io.predict_btb_entry.btb_valid := True
         io.predict_btb_entry.btb_target := target_pc
         io.predict_btb_entry.btb_taken := btb_taken
-      } .otherwise{
-        io.predict_btb_entry.btb_valid := True
-        io.predict_btb_entry.btb_target := 0
-        io.predict_btb_entry.btb_taken := False
       }
     } .otherwise{
       io.predict_btb_entry.btb_valid := False
       io.predict_btb_entry.btb_target := 0
       io.predict_btb_entry.btb_taken := False
     }
+
+    when(io.resolved_btb_entry.btb_valid === True){
+      when(io.resolved_btb_entry.pc === btb_index){
+        replace_index := i
+      } .otherwise {
+        replace_index := replace_index_last + 1
+        replace_index_last := replace_index_last + 1
+      }
+    }
+
   }
 
-  val hit_vec = Vec(Bool(),BTB_PAGE_NUM)
-  val hit = hit_vec.sContains(True)
   for(i <- 0 until BTB_PAGE_NUM) {
     hit_vec(i) := btb_lut(i)(InstAddrBus+InstAddrBus downto InstAddrBus+1) === io.resolved_btb_entry.pc
   }
-  val replace_index = U"0"  // TODO with LRU/LFU replace strategy
+
   for(i <- 0 until BTB_PAGE_NUM) {
-    when(~hit && i === replace_index && io.resolved_btb_entry.btb_valid === True){
+    when(i === replace_index && io.resolved_btb_entry.btb_valid === True){
       btb_lut(i) := ((InstAddrBus+InstAddrBus downto InstAddrBus+1) -> io.resolved_btb_entry.pc, (InstAddrBus downto 1) -> io.resolved_btb_entry.btb_target,0 -> io.resolved_btb_entry.btb_taken)
     } .otherwise{}
   }
@@ -620,25 +641,47 @@ class ras extends Component with Global_parameter with Interface_MS{
   }
      */
   // RAS的call/ret对错主要和前级分支预测的对错有关
-  when(io.mispredict_entry.call_cor){ // 预测call错误
+  val mispredict_call_cor_d1 = Reg(Bool()) init(False)
+  val mispredict_call_cor_pos = io.mispredict_entry.call_cor && ~mispredict_call_cor_d1
+  mispredict_call_cor_d1 := io.mispredict_entry.call_cor
+
+  val mispredict_ret_cor_d1 = Reg(Bool()) init(False)
+  val mispredict_ret_cor_pos = io.mispredict_entry.ret_cor && ~mispredict_ret_cor_d1
+  mispredict_ret_cor_d1 := io.mispredict_entry.ret_cor
+
+  val mispredict_is_call_d1 = Reg(Bool()) init(False)
+  val mispredict_is_call_pos = io.mispredict_entry.is_call && ~mispredict_is_call_d1
+  mispredict_is_call_d1 := io.mispredict_entry.is_call
+
+  val mispredict_is_ret_d1 = Reg(Bool()) init(False)
+  val mispredict_is_ret_pos = io.mispredict_entry.is_ret && ~mispredict_is_ret_d1
+  mispredict_is_ret_d1 := io.mispredict_entry.is_ret
+
+  //when(io.mispredict_entry.call_cor){ // 预测call错误
+  when(mispredict_call_cor_pos) {
     //ras_stack(ras_ptr) := 0
     ras_ptr := ras_ptr - 1
-  } .elsewhen(io.mispredict_entry.ret_cor) {  // 预测ret错误
+    //} .elsewhen(io.mispredict_entry.ret_cor) {  // 预测ret错误
+  } .elsewhen(mispredict_ret_cor_pos) {
     ras_stack(ras_ptr) := ras_stack_backup(ras_ptr)
     ras_ptr := ras_ptr + 1
-  }.elsewhen(io.predict_branch_entry.is_call) {
+    //}.elsewhen(io.predict_branch_entry.is_call) {
+    } .elsewhen(mispredict_is_call_pos) {
     ras_stack(ras_ptr) := io.call_push_target
     ras_ptr := ras_ptr + 1
-  }.elsewhen(io.predict_branch_entry.is_ret) {
+    //}.elsewhen(io.predict_branch_entry.is_ret) {
+    } .elsewhen(mispredict_is_ret_pos){
     io.ras_target := ras_stack(ras_ptr-1)
     ras_ptr := ras_ptr - 1
   }
 
   // 提交栈
-  when(~io.ex_commit_entry.call_cor && io.ex_commit_entry.is_call){
+  //when(~io.ex_commit_entry.call_cor && io.ex_commit_entry.is_call){
+  when(~mispredict_call_cor_pos && mispredict_is_call_pos) {
     ras_stack_backup(ras_ptr_backup) := ras_stack(ras_ptr_backup)
     ras_ptr_backup := ras_ptr_backup + 1
-  } .elsewhen(~io.ex_commit_entry.ret_cor && io.ex_commit_entry.is_ret){
+    //} .elsewhen(~io.ex_commit_entry.ret_cor && io.ex_commit_entry.is_ret){
+    } .elsewhen(~mispredict_ret_cor_pos && mispredict_is_ret_pos){
     ras_ptr_backup := ras_ptr_backup - 1
   }
 
@@ -3625,6 +3668,7 @@ trait Global_parameter {
   val DataAddrBus   = 32
   val DataBus       = 32
   val InstLen = 4
+  val BTB_PAGE_WIDTH = 3
   val BTB_PAGE_NUM = 8
   val BTB_TARGET_NUM = 32
   val RegAddrBus = 5

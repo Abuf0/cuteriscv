@@ -135,10 +135,14 @@ case class bju_unit() extends Component with Global_parameter with Interface_MS 
   // todo: 把上面三个看情况改成dec_valid寄存器输出，为了修复EXE hold时组合逻辑会变（其实其他unit都是寄存器输出来着，）
   val ex_branch_predict_is_branch = Reg(Bool()) init(False)
   val ex_branch_predict_is_jump = Reg(Bool()) init(False)
+  val ex_branch_predict_is_call = Reg(Bool()) init(False)
+  val ex_branch_predict_is_ret = Reg(Bool()) init(False)
   val ex_branch_predict_branch_taken = Reg(Bool()) init(False)
   val ex_branch_predict_branch_target = Reg(UInt(InstAddrBus bits)) init(0)
   ex_branch_predict_is_branch := io.ex_branch_predict.is_branch
   ex_branch_predict_is_jump := io.ex_branch_predict.is_jump
+  ex_branch_predict_is_call := io.ex_branch_predict.is_call
+  ex_branch_predict_is_ret := io.ex_branch_predict.is_ret
   ex_branch_predict_branch_taken := io.ex_branch_predict.branch_taken
   ex_branch_predict_branch_target := io.ex_branch_predict.branch_target
   // todo with call/ret mis
@@ -154,6 +158,8 @@ case class bju_unit() extends Component with Global_parameter with Interface_MS 
     branch_cor_unresolve := False
   } .otherwise{  }
 
+  //io.bju_mispredict.call_cor := ex_branch_predict_is_call && branch_cor_unresolve // todo 0520
+  //io.bju_mispredict.ret_cor := ex_branch_predict_is_ret && (branch_cor_unresolve || bju_target_pc =/= ex_branch_predict_branch_target)  // todo 0520
   io.bju_mispredict.call_cor := io.ex_branch_predict.is_call && branch_cor_unresolve
   io.bju_mispredict.ret_cor := io.ex_branch_predict.is_ret && (branch_cor_unresolve || bju_target_pc =/= ex_branch_predict_branch_target)
   io.bju_mispredict.branch_cor := (ex_branch_predict_is_branch && ((branch_taken =/= ex_branch_predict_branch_taken) || (bju_target_pc =/= ex_branch_predict_branch_target))) || (ex_branch_predict_is_jump && (bju_target_pc =/= ex_branch_predict_branch_target))
@@ -162,8 +168,8 @@ case class bju_unit() extends Component with Global_parameter with Interface_MS 
   io.bju_mispredict.is_call := io.ex_branch_predict.is_call
   io.bju_mispredict.is_ret := io.ex_branch_predict.is_ret
   // todo
-  io.bju_mispredict.call_cor.setAsReg()
-  io.bju_mispredict.ret_cor.setAsReg()
+  io.bju_mispredict.call_cor.setAsReg() // todo 0520
+  io.bju_mispredict.ret_cor.setAsReg()  // todo 0520
   io.bju_mispredict.is_branch.setAsReg()
   io.bju_mispredict.is_call.setAsReg()
   io.bju_mispredict.is_ret.setAsReg()
@@ -184,7 +190,7 @@ case class bju_unit() extends Component with Global_parameter with Interface_MS 
   io.bju_ex_entry.pc := bju_pc
   io.bju_ex_entry.instr := bju_instr
 
-  io.bju_branch_predict.setAsReg()
+  //io.bju_branch_predict.setAsReg()
   io.bju_branch_predict.branch_valid := io.ex_branch_predict.branch_valid
   io.bju_branch_predict.branch_taken := branch_taken
   io.bju_branch_predict.branch_target := bju_target_pc
@@ -192,6 +198,12 @@ case class bju_unit() extends Component with Global_parameter with Interface_MS 
   io.bju_branch_predict.is_call := io.ex_branch_predict.is_call
   io.bju_branch_predict.is_ret := io.ex_branch_predict.is_ret
   io.bju_branch_predict.pc := io.ex_branch_predict.pc
+
+  io.bju_branch_predict.branch_valid.setAsReg()
+  io.bju_branch_predict.is_branch.setAsReg()
+  io.bju_branch_predict.is_call.setAsReg()
+  io.bju_branch_predict.is_ret.setAsReg()
+  io.bju_branch_predict.pc.setAsReg()
 
 
 

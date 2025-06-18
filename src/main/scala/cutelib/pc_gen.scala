@@ -57,14 +57,19 @@ case class pc_gen() extends Component with Global_parameter with Interface_MS {
 
   is_jump := False
 
-  when(io.ex_branch_predict.branch_cor){
+  val branch_cor_d1 = Reg(Bool()) init(False)
+  branch_cor_d1 := io.ex_branch_predict.branch_cor
+  val branch_cor_pos = io.ex_branch_predict.branch_cor && ~branch_cor_d1
+  //val branch_cor_pos := io.ex_branch_predict.branch_cor
+
+  when(branch_cor_pos){
     io.resolved_bht_entry.bht_valid := io.bju_branch_predict.branch_valid
     io.resolved_bht_entry.bht_taken := io.bju_branch_predict.branch_taken
-    io.resolved_bht_entry.pc := io.bju_branch_predict.branch_target
+    io.resolved_bht_entry.pc := io.bju_branch_predict.pc
     io.resolved_btb_entry.btb_valid := io.bju_branch_predict.branch_valid
     io.resolved_btb_entry.btb_taken := io.bju_branch_predict.branch_taken
     io.resolved_btb_entry.btb_target := io.bju_branch_predict.branch_target
-    io.resolved_btb_entry.pc := io.bju_branch_predict.branch_target
+    io.resolved_btb_entry.pc := io.bju_branch_predict.pc
   } .otherwise {
     io.resolved_bht_entry.bht_valid := False
     io.resolved_bht_entry.bht_taken := False

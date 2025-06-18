@@ -79,6 +79,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
   val PC_TAB = Vec(Reg(UInt(InstAddrBus bits)) init(0), SCB_INSTR_DEEPTH)
   val BP_TAB = Vec(Reg(UInt(InstAddrBus+InstAddrBus+6 bits)) init(0), SCB_INSTR_DEEPTH)
   val PRE_TAB = Vec(Reg(Bool()) init(False),SCB_INSTR_DEEPTH)
+  val PRF_TAB = Vec(Reg(UInt(RegDataBus bits)) init(0), SCB_INSTR_DEEPTH)
 
   val wptr = Reg(UInt(SCB_INSTR_WIDTH+1 bit)) init(0)
   val rptr = Reg(UInt(SCB_INSTR_WIDTH+1 bit)) init(0)
@@ -549,6 +550,107 @@ case class scoreboard () extends Component with Global_parameter with Interface_
 
   fwb_flag := Vec.fill(REG_NUM)(False)
 
+  /*
+  io.alu_oprand_entry.rs1_data.setAsReg()
+  io.alu_oprand_entry.rs2_data.setAsReg()
+  io.alu_oprand_entry.imm.setAsReg()
+  io.alu_oprand_entry.rd_addr.setAsReg()
+  io.alu_oprand_entry.rd_wten.setAsReg()
+  io.alu_oprand_entry.instr.setAsReg()
+  io.alu_oprand_entry.op_type.setAsReg()
+  io.alu_oprand_entry.dec_valid.setAsReg()
+  io.alu_oprand_entry.trans_id.setAsReg()
+  io.alu_oprand_entry.pc.setAsReg()
+
+  io.mul1_oprand_entry.rs1_data.setAsReg()
+  io.mul1_oprand_entry.rs2_data.setAsReg()
+  io.mul1_oprand_entry.imm.setAsReg()
+  io.mul1_oprand_entry.rd_addr.setAsReg()
+  io.mul1_oprand_entry.rd_wten.setAsReg()
+  io.mul1_oprand_entry.instr.setAsReg()
+  io.mul1_oprand_entry.op_type.setAsReg()
+  io.mul1_oprand_entry.dec_valid.setAsReg()
+  io.mul1_oprand_entry.trans_id.setAsReg()
+  io.mul1_oprand_entry.pc.setAsReg()
+
+  io.mul2_oprand_entry.rs1_data.setAsReg()
+  io.mul2_oprand_entry.rs2_data.setAsReg()
+  io.mul2_oprand_entry.imm.setAsReg()
+  io.mul2_oprand_entry.rd_addr.setAsReg()
+  io.mul2_oprand_entry.rd_wten.setAsReg()
+  io.mul2_oprand_entry.instr.setAsReg()
+  io.mul2_oprand_entry.op_type.setAsReg()
+  io.mul2_oprand_entry.dec_valid.setAsReg()
+  io.mul2_oprand_entry.trans_id.setAsReg()
+  io.mul2_oprand_entry.pc.setAsReg()
+
+  io.div_oprand_entry.rs1_data.setAsReg()
+  io.div_oprand_entry.rs2_data.setAsReg()
+  io.div_oprand_entry.imm.setAsReg()
+  io.div_oprand_entry.rd_addr.setAsReg()
+  io.div_oprand_entry.rd_wten.setAsReg()
+  io.div_oprand_entry.instr.setAsReg()
+  io.div_oprand_entry.op_type.setAsReg()
+  io.div_oprand_entry.dec_valid.setAsReg()
+  io.div_oprand_entry.trans_id.setAsReg()
+  io.div_oprand_entry.pc.setAsReg()
+
+  io.lsu_oprand_entry.rs1_data.setAsReg()
+  io.lsu_oprand_entry.rs2_data.setAsReg()
+  io.lsu_oprand_entry.imm.setAsReg()
+  io.lsu_oprand_entry.rd_addr.setAsReg()
+  io.lsu_oprand_entry.rd_wten.setAsReg()
+  io.lsu_oprand_entry.instr.setAsReg()
+  io.lsu_oprand_entry.op_type.setAsReg()
+  io.lsu_oprand_entry.dec_valid.setAsReg()
+  io.lsu_oprand_entry.trans_id.setAsReg()
+  io.lsu_oprand_entry.pc.setAsReg()
+
+  io.bju_oprand_entry.rs1_data.setAsReg()
+  io.bju_oprand_entry.rs2_data.setAsReg()
+  io.bju_oprand_entry.imm.setAsReg()
+  io.bju_oprand_entry.rd_addr.setAsReg()
+  io.bju_oprand_entry.rd_wten.setAsReg()
+  io.bju_oprand_entry.instr.setAsReg()
+  io.bju_oprand_entry.op_type.setAsReg()
+  io.bju_oprand_entry.dec_valid.setAsReg()
+  io.bju_oprand_entry.trans_id.setAsReg()
+  io.bju_oprand_entry.pc.setAsReg()
+
+  io.nopu_oprand_entry.rs1_data.setAsReg()
+  io.nopu_oprand_entry.rs2_data.setAsReg()
+  io.nopu_oprand_entry.imm.setAsReg()
+  io.nopu_oprand_entry.rd_addr.setAsReg()
+  io.nopu_oprand_entry.rd_wten.setAsReg()
+  io.nopu_oprand_entry.instr.setAsReg()
+  io.nopu_oprand_entry.op_type.setAsReg()
+  io.nopu_oprand_entry.dec_valid.setAsReg()
+  io.nopu_oprand_entry.trans_id.setAsReg()
+  io.nopu_oprand_entry.pc.setAsReg()
+
+  io.csr_oprand_entry.rs1_data.setAsReg()
+  io.csr_oprand_entry.rs2_data.setAsReg()
+  io.csr_oprand_entry.imm.setAsReg()
+  io.csr_oprand_entry.rd_addr.setAsReg()
+  io.csr_oprand_entry.rd_wten.setAsReg()
+  io.csr_oprand_entry.instr.setAsReg()
+  io.csr_oprand_entry.op_type.setAsReg()
+  io.csr_oprand_entry.dec_valid.setAsReg()
+  io.csr_oprand_entry.trans_id.setAsReg()
+  io.csr_oprand_entry.pc.setAsReg()
+  // avoid latch
+  io.csr_wb_read_addr.setAsReg()
+
+  io.scb_branch_predict_entry.pc.setAsReg()
+  io.scb_branch_predict_entry.branch_target.setAsReg()
+  io.scb_branch_predict_entry.is_branch.setAsReg()
+  io.scb_branch_predict_entry.is_call.setAsReg()
+  io.scb_branch_predict_entry.is_ret.setAsReg()
+  io.scb_branch_predict_entry.is_jump.setAsReg()
+  io.scb_branch_predict_entry.branch_valid.setAsReg()
+  io.scb_branch_predict_entry.branch_taken.setAsReg()
+  */
+
   io.alu_oprand_entry.rs1_data := 0
   io.alu_oprand_entry.rs2_data := 0
   io.alu_oprand_entry.imm := 0
@@ -703,6 +805,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
     //trans_id := index.resized
     trans_id := index
     val pc = PC_TAB(index)
+    val prf_value = PRF_TAB(index)
     val bp_pc = BP_TAB(index)(InstAddrBus+InstAddrBus+5 downto InstAddrBus+6)
     val bp_branch_target = BP_TAB(index)(InstAddrBus+5 downto 6)
     val bp_is_branch = BP_TAB(index)(5 downto 5)
@@ -720,6 +823,9 @@ case class scoreboard () extends Component with Global_parameter with Interface_
     val csr_data_real = UInt(CSRDataBus bits)
     rs1_data_real := io.scb_readop_wb_i(rs1_addr)
     rs2_data_real := io.scb_readop_wb_i(rs2_addr)
+    //rs1_data_real := io.scb_readop_i(rs1_addr)
+    //rs2_data_real := io.scb_readop_i(rs2_addr)
+
     csr_data_real := io.csr_wb_read_data
 
 
@@ -754,7 +860,11 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           SCB_IU_TAB(i) := IDLE
         }.elsewhen (REG_ST_NW(rd_addr) === True && rd_wten) { // WAW hazard
           SCB_IU_TAB(i) := IDLE
+        }. elsewhen (REG_ST_R(rd_addr) === True && rd_wten) { // WAR hazard todo fix
+          SCB_IU_TAB(i) := IDLE
         } .elsewhen (FU_ST(U(alu_sel)) === True) { // Structure hazard with Function Unit // todo
+          SCB_IU_TAB(i) := IDLE
+        } .elsewhen((REG_ST_NW(rs1_addr) === True && fwb_flag(rs1_addr) === False && rs1_rden) || (REG_ST_NW(rs2_addr) === True && fwb_flag(rs2_addr) === False && rs2_rden)) { // RAW issue --> fwb
           SCB_IU_TAB(i) := IDLE
         } .elsewhen(dec_vld === True && tab_enable === True){
           SCB_IU_TAB(i) := ISSUE
@@ -762,9 +872,15 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           //REG_ST(rs2_addr) := rs2_rden##B"0"
           //REG_ST_W(rd_addr) := rd_wten
           when(rd_wten){
-            REG_ST_W(rd_addr) := True
+            REG_ST_W(rd_addr) := True // todo rename or ... for WAR
             REG_ST_NW(rd_addr) := True
           } .otherwise{ }
+          when(rs1_rden) {
+            REG_ST_R(rs1_addr) := rs1_rden
+          }
+          when(rs2_rden) {
+            REG_ST_R(rs2_addr) := rs2_rden
+          }
           when(csr_wten){
             CSR_ST_W(csr_addr) := True
             CSR_ST_NW(csr_addr) := True
@@ -784,7 +900,6 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           when(io.flush) {
             DEC_VLD(i) := False // add for flush clear TABs
           }
-          //instr_end_tab(i) := True
           FU_ST(U(alu_sel)) := False
           REG_ST_W(rd_addr) := False
           REG_ST_NW(rd_addr) := False
@@ -797,8 +912,9 @@ case class scoreboard () extends Component with Global_parameter with Interface_
             REG_ST_LDR(rs1_addr) := False
             REG_ST_LDR(rs2_addr) := False
           }
+        //}.elsewhen((REG_ST_W(rs1_addr) === True && fwb_flag(rs1_addr) === False && rs1_rden && ~(rs1_addr === rd_addr && rd_wten)) || (REG_ST_W(rs2_addr) === True && fwb_flag(rs2_addr) === False && rs2_rden && ~(rs2_addr === rd_addr && rd_wten))) { // RAW issue --> fwb
         }.elsewhen((REG_ST_NW(rs1_addr) === True && fwb_flag(rs1_addr) === False && rs1_rden && ~(rs1_addr === rd_addr && rd_wten)) || (REG_ST_NW(rs2_addr) === True && fwb_flag(rs2_addr) === False && rs2_rden && ~(rs2_addr === rd_addr && rd_wten))) { // RAW issue --> fwb
-          //.elsewhen ((REG_ST_W(rs1_addr) === True && fwb_flag(rs1_addr) === False && rs1_rden) || (REG_ST_W(rs2_addr) === True && fwb_flag(rs2_addr) === False && rs2_rden && )) {v
+          //.elsewhen ((REG_ST_W(rs1_addr) === True && fwb_flag(rs1_addr) === False && rs1_rden) || (REG_ST_W(rs2_addr) === True && fwb_flag(rs2_addr) === False && rs2_rden && )) {
           SCB_IU_TAB(i) := ISSUE
         }.otherwise {
           SCB_IU_TAB(i) := READOP
@@ -1441,7 +1557,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           SCB_IU_TAB(i) := IDLE
           REG_ST_R(rs1_addr) := False
           REG_ST_R(rs2_addr) := False
-          REG_ST_W(rd_addr) := False
+          //REG_ST_W(rd_addr) := False
           CSR_ST_R(csr_addr) := False
           CSR_ST_W(csr_addr) := False
           //instr_real_end_tab(i) := True
@@ -1451,6 +1567,7 @@ case class scoreboard () extends Component with Global_parameter with Interface_
           }
         }.otherwise {
           SCB_IU_TAB(i) := COMMIT
+          REG_ST_W(rd_addr) := False
         }
 
       }

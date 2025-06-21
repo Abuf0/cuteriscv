@@ -34,7 +34,7 @@ module ahb_master
     output logic [DATA_WIDTH-1:0]          HWDATA      ,
     output logic                           HWRITE      ,
     // ------ From interconnect ------ //
-    //input                                  trans_pend  ,
+    input                                  trans_pend  ,
     input                                  HREADY      ,
     input [DATA_WIDTH-1:0]                 HRDATA      ,
     input                                  HRESP         
@@ -201,7 +201,9 @@ assign rvalid_ifu = HREADY && master_read_id_lat[0] && (re || re_d1) && (state_c
 assign rvalid_lsu = HREADY && master_read_id_lat[1] && (re || re_d1) && (state_c == NONSEQ || state_c == WAIT);
 assign rready_lsu = rvalid_lsu;
 
-assign wvalid = HREADY && HWRITE && HTRANS[1] && (state_c == NONSEQ || state_c == WAIT) && ~(we && ~we_d1); // TODO 
+//assign wvalid = HREADY && HWRITE && HTRANS[1] && (state_c == NONSEQ || state_c == WAIT) && ~(we && ~we_d1); // TODO 
+assign wvalid = HREADY && HWRITE && HTRANS[1] && (state_c == NONSEQ || state_c == WAIT) && (we && ~trans_pend); // 0620
+
 //assign first_trans = (re && state_c == IDLE && state_n != IDLE);
 //assign first_trans = (re && state_c == IDLE && state_n != IDLE) && (master_read_id != master_read_id_lat);
 always_ff@(posedge HCLK or negedge HRESETn) begin
@@ -213,7 +215,8 @@ end
 always_ff@(posedge HCLK or negedge HRESETn) begin
     if(~HRESETn)
         re_d1 <= 1'b0;
-    else
+    //else
+    else if(HREADY) // FIX 
         re_d1 <= re;
 end
 /*
@@ -548,6 +551,8 @@ module ahb_connect (
     HREADYS1,
     HRESPS1,
 
+    trans_pend,
+
     // Scan test dummy signals; not connected until scan insertion
     SCANOUTHCLK   // Scan Chain Output
 
@@ -705,6 +710,8 @@ module ahb_connect (
 
     // Scan test dummy signals; not connected until scan insertion
     output        SCANOUTHCLK;     // Scan Chain Output
+
+    output       trans_pend;
 
 // -----------------------------------------------------------------------------
 // Wire declarations
@@ -1021,7 +1028,8 @@ module ahb_connect (
     .HREADYOUTM7  (HREADYOUTM7),
     .HRESPM7      (i_hrespM7),
 
-
+    .trans_pend   (trans_pend),
+    
     // Scan test dummy signals; not connected until scan insertion
     .SCANENABLE            (SCANENABLE),
     .SCANINHCLK            (SCANINHCLK),
@@ -1232,6 +1240,8 @@ module L1AhbMtx (
     HREADYOUTS1,
     HRESPS1,
 
+    trans_pend,
+
     // Scan test dummy signals; not connected until scan insertion
     SCANOUTHCLK   // Scan Chain Output
 
@@ -1400,6 +1410,8 @@ module L1AhbMtx (
 
     // Scan test dummy signals; not connected until scan insertion
     output        SCANOUTHCLK;     // Scan Chain Output
+
+    output        trans_pend;
 
 
 // -----------------------------------------------------------------------------
@@ -1648,7 +1660,8 @@ module L1AhbMtx (
     .prot_ip       (i_prot0),
     .master_ip     (i_master0),
     .mastlock_ip   (i_mastlock0),
-    .held_tran_ip   (i_held_tran0)
+    .held_tran_ip   (i_held_tran0),
+    .trans_pend   (trans_pend)
 
     );
 
@@ -3037,7 +3050,8 @@ module L1AhbMtxInStg (
     prot_ip,
     master_ip,
     mastlock_ip,
-    held_tran_ip
+    held_tran_ip,
+    trans_pend
 
     );
 
@@ -3074,6 +3088,7 @@ module L1AhbMtxInStg (
     output [3:0]  master_ip;          // HMASTER output
     output        mastlock_ip;        // HMASTLOCK output
     output        held_tran_ip;        // Holding register active flag
+    output        trans_pend;
 
 
 // -----------------------------------------------------------------------------
@@ -3241,7 +3256,7 @@ module L1AhbMtxInStg (
   // active_ip being high) and HREADY from the selected slave is high.
   assign pend_tran = (load_reg & (~active_ip)) ? 1'b1 :
                     (active_ip & readyout_ip) ? 1'b0 : pend_tran_reg;
-
+  assign trans_pend = pend_tran;
   // pend_tran_reg indicates that an active transfer was accepted by the input
   // stage,but not by the output stage, and so the holding registers should be
   // used

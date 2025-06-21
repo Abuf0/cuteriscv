@@ -129,7 +129,7 @@ class ahb_master extends BlackBox with Global_parameter with Interface_MS{
     val write_entry = slave(cpu_write_interface(CoreConfig()))
     val ahb_entry = master(ahb_interface(CoreConfig()))
     val master_read_id = in UInt(2 bits)
-    //val trans_pend = in Bool()
+    val trans_pend = in Bool()
     /*
     val waddr = in UInt(DataAddrBus bits)
     val we = in Bool()
@@ -233,7 +233,7 @@ class ahb_connect extends BlackBox with Global_parameter with Interface_MS {
     val ahb_entry_M5 = master(ahb_bus_interface(CoreConfig()))  // to Resevered
     val ahb_entry_M6 = master(ahb_bus_interface(CoreConfig()))  // to AHB2APB Bridge
     val ahb_entry_M7 = master(ahb_bus_interface(CoreConfig()))  // to Debug
-    //val trans_pend = out Bool()
+    val trans_pend = out Bool()
     //val ahb_entry_S3 = master(ahb_interface(CoreConfig()))  // to Machine Timer
     //val ahb_entry_S4 = master(ahb_interface(CoreConfig()))  // to PLIC
     //val ahb_entry_S5 = master(ahb_interface(CoreConfig()))  // to ahb2apb bridge
@@ -2568,11 +2568,16 @@ class regfile_wb extends Component with Global_parameter with Interface_MS {
     val rstn = in Bool()
     val flush = in Bool()
     val write_interface_alu = slave(wregfile_interface(CoreConfig()))  // from commit stage
+    val write_interface_alu2 = slave(wregfile_interface(CoreConfig()))  // from commit stage
+    val write_interface_alu3 = slave(wregfile_interface(CoreConfig()))  // from commit stage
+    val write_interface_alu4 = slave(wregfile_interface(CoreConfig()))  // from commit stage
     val write_interface_mul1 = slave(wregfile_interface(CoreConfig()))  // from commit stage
     val write_interface_mul2 = slave(wregfile_interface(CoreConfig()))  // from commit stage
     val write_interface_divu = slave(wregfile_interface(CoreConfig()))  // from commit stage
     val write_interface_bju = slave(wregfile_interface(CoreConfig()))  // from commit stage
     val write_interface_lsu = slave(wregfile_interface(CoreConfig()))  // from commit stage
+    val write_interface_csr = slave(wregfile_interface(CoreConfig()))  // from commit stage
+
     //val readop_ctrl = in Vec(Bits(2 bit),REG_NUM) // from scb
     val writeop_entry = in Vec(UInt(RegDataBus bits),REG_NUM) // from regfile
     val readop_entry = out Vec(UInt(RegDataBus bits),REG_NUM) // to scb
@@ -2591,8 +2596,14 @@ class regfile_wb extends Component with Global_parameter with Interface_MS {
     }
   } .otherwise{
     for(i <- 0 until REG_NUM){
-      when(io.write_interface_alu.reg_wen && io.write_interface_alu.reg_waddr === i){
+      when(io.write_interface_alu.reg_wen && io.write_interface_alu.reg_waddr === i) {
         REG_FILE(i) := io.write_interface_alu.reg_wdata
+      } .elsewhen(io.write_interface_alu2.reg_wen && io.write_interface_alu2.reg_waddr === i){
+        REG_FILE(i) := io.write_interface_alu2.reg_wdata
+      } .elsewhen(io.write_interface_alu3.reg_wen && io.write_interface_alu3.reg_waddr === i){
+        REG_FILE(i) := io.write_interface_alu3.reg_wdata
+      } .elsewhen(io.write_interface_alu4.reg_wen && io.write_interface_alu4.reg_waddr === i){
+        REG_FILE(i) := io.write_interface_alu4.reg_wdata
       } .elsewhen(io.write_interface_mul1.reg_wen && io.write_interface_mul1.reg_waddr === i){
         REG_FILE(i) := io.write_interface_mul1.reg_wdata
       } .elsewhen(io.write_interface_mul2.reg_wen && io.write_interface_mul2.reg_waddr === i){
@@ -2603,6 +2614,8 @@ class regfile_wb extends Component with Global_parameter with Interface_MS {
         REG_FILE(i) := io.write_interface_bju.reg_wdata
       } .elsewhen(io.write_interface_lsu.reg_wen && io.write_interface_lsu.reg_waddr === i){
         REG_FILE(i) := io.write_interface_lsu.reg_wdata
+      } .elsewhen(io.write_interface_csr.reg_wen && io.write_interface_lsu.reg_waddr === i){
+        REG_FILE(i) := io.write_interface_csr.reg_wdata
       } .otherwise{  }
     }
 
@@ -2722,6 +2735,9 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
 
   // pipeline-5 : ex stage //
   val alu_unit = new alu_unit
+  val alu2_unit = new alu_unit
+  val alu3_unit = new alu_unit
+  val alu4_unit = new alu_unit
   val mul1_unit = new mul_unit
   val mul2_unit = new mul_unit
   val div_unit = new div_unit
@@ -2820,6 +2836,12 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   scoreboard.io.flush := commit.io.flush
   alu_unit.io.clk := io.clk
   alu_unit.io.rstn := io.rstn
+  alu2_unit.io.clk := io.clk
+  alu2_unit.io.rstn := io.rstn
+  alu3_unit.io.clk := io.clk
+  alu3_unit.io.rstn := io.rstn
+  alu4_unit.io.clk := io.clk
+  alu4_unit.io.rstn := io.rstn
   mul1_unit.io.clk := io.clk
   mul1_unit.io.rstn := io.rstn
   mul2_unit.io.clk := io.clk
@@ -2863,6 +2885,15 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   //id2issue.io.id2issue_dec_entry connect alu_unit.io.dec_entry
   scoreboard.io.alu_oprand_entry connect alu_unit.io.ex_operand_entry
   scoreboard.io.alu_ex_entry connect alu_unit.io.alu_ex_entry
+  // alu2
+  scoreboard.io.alu2_oprand_entry connect alu2_unit.io.ex_operand_entry
+  scoreboard.io.alu2_ex_entry connect alu2_unit.io.alu_ex_entry
+  // alu3
+  scoreboard.io.alu3_oprand_entry connect alu3_unit.io.ex_operand_entry
+  scoreboard.io.alu3_ex_entry connect alu3_unit.io.alu_ex_entry
+  // alu4
+  scoreboard.io.alu4_oprand_entry connect alu4_unit.io.ex_operand_entry
+  scoreboard.io.alu4_ex_entry connect alu4_unit.io.alu_ex_entry
   // mul1
   //id2issue.io.id2issue_dec_entry connect mul1_unit.io.dec_entry
   scoreboard.io.mul1_oprand_entry connect mul1_unit.io.ex_operand_entry
@@ -2896,6 +2927,9 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   scoreboard.io.nopu_ex_entry connect nop_unit.io.nopu_ex_entry
 
   scoreboard.io.alu_ex_wb_entry connect wb.io.alu_ex_wb_entry
+  scoreboard.io.alu2_ex_wb_entry connect wb.io.alu2_ex_wb_entry
+  scoreboard.io.alu3_ex_wb_entry connect wb.io.alu3_ex_wb_entry
+  scoreboard.io.alu4_ex_wb_entry connect wb.io.alu4_ex_wb_entry
   scoreboard.io.mul1_ex_wb_entry connect wb.io.mul1_ex_wb_entry
   scoreboard.io.mul2_ex_wb_entry connect wb.io.mul2_ex_wb_entry
   scoreboard.io.divu_ex_wb_entry connect wb.io.divu_ex_wb_entry
@@ -2920,11 +2954,15 @@ class cutecore_logic extends Component with Global_parameter with Interface_MS{
   scoreboard.io.store_data_wvalid := mmu.io.s_memory_write_interface.wvalid
 
   wb.io.wb_regfile_interface_alu connect regfile_wb.io.write_interface_alu
+  wb.io.wb_regfile_interface_alu2 connect regfile_wb.io.write_interface_alu2
+  wb.io.wb_regfile_interface_alu3 connect regfile_wb.io.write_interface_alu3
+  wb.io.wb_regfile_interface_alu4 connect regfile_wb.io.write_interface_alu4
   wb.io.wb_regfile_interface_mul1 connect regfile_wb.io.write_interface_mul1
   wb.io.wb_regfile_interface_mul2 connect regfile_wb.io.write_interface_mul2
   wb.io.wb_regfile_interface_divu connect regfile_wb.io.write_interface_divu
   wb.io.wb_regfile_interface_bju connect regfile_wb.io.write_interface_bju
   wb.io.wb_regfile_interface_lsu connect regfile_wb.io.write_interface_lsu
+  wb.io.wb_regfile_interface_csr connect regfile_wb.io.write_interface_csr
 
   regfile_wb.io.writeop_entry := regfile.io.readop_entry
   wb.io.wb_csr_interface connect csr_regfile_wb.io.write_interface
@@ -3105,7 +3143,7 @@ class cutecore extends Component {
   ahb_connect.io.ahb_entry_M6 connect ahb2slave_M6.io.ahb_entry
   ahb_connect.io.ahb_entry_M7 connect ahb2slave_M7.io.ahb_entry
 
-  //ahb_master.io.trans_pend := ahb_connect.io.trans_pend
+  ahb_master.io.trans_pend := ahb_connect.io.trans_pend
 
 }
 

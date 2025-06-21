@@ -200,6 +200,8 @@ module L1AhbMtx (
     HREADYOUTS1,
     HRESPS1,
 
+    trans_pend,
+
     // Scan test dummy signals; not connected until scan insertion
     SCANOUTHCLK   // Scan Chain Output
 
@@ -368,6 +370,8 @@ module L1AhbMtx (
 
     // Scan test dummy signals; not connected until scan insertion
     output        SCANOUTHCLK;     // Scan Chain Output
+
+    output        trans_pend;
 
 
 // -----------------------------------------------------------------------------
@@ -616,7 +620,8 @@ module L1AhbMtx (
     .prot_ip       (i_prot0),
     .master_ip     (i_master0),
     .mastlock_ip   (i_mastlock0),
-    .held_tran_ip   (i_held_tran0)
+    .held_tran_ip   (i_held_tran0),
+    .trans_pend   (trans_pend)
 
     );
 

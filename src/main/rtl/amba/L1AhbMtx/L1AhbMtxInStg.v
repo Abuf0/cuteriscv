@@ -66,7 +66,8 @@ module L1AhbMtxInStg (
     prot_ip,
     master_ip,
     mastlock_ip,
-    held_tran_ip
+    held_tran_ip,
+    trans_pend
 
     );
 
@@ -103,6 +104,7 @@ module L1AhbMtxInStg (
     output [3:0]  master_ip;          // HMASTER output
     output        mastlock_ip;        // HMASTLOCK output
     output        held_tran_ip;        // Holding register active flag
+    output        trans_pend;
 
 
 // -----------------------------------------------------------------------------
@@ -270,7 +272,7 @@ module L1AhbMtxInStg (
   // active_ip being high) and HREADY from the selected slave is high.
   assign pend_tran = (load_reg & (~active_ip)) ? 1'b1 :
                     (active_ip & readyout_ip) ? 1'b0 : pend_tran_reg;
-
+  assign trans_pend = pend_tran;
   // pend_tran_reg indicates that an active transfer was accepted by the input
   // stage,but not by the output stage, and so the holding registers should be
   // used

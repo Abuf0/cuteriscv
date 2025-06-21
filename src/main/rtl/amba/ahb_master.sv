@@ -34,7 +34,7 @@ module ahb_master
     output logic [DATA_WIDTH-1:0]          HWDATA      ,
     output logic                           HWRITE      ,
     // ------ From interconnect ------ //
-    //input                                  trans_pend  ,
+    input                                  trans_pend  ,
     input                                  HREADY      ,
     input [DATA_WIDTH-1:0]                 HRDATA      ,
     input                                  HRESP         
@@ -201,7 +201,9 @@ assign rvalid_ifu = HREADY && master_read_id_lat[0] && (re || re_d1) && (state_c
 assign rvalid_lsu = HREADY && master_read_id_lat[1] && (re || re_d1) && (state_c == NONSEQ || state_c == WAIT);
 assign rready_lsu = rvalid_lsu;
 
-assign wvalid = HREADY && HWRITE && HTRANS[1] && (state_c == NONSEQ || state_c == WAIT) && ~(we && ~we_d1); // TODO 
+//assign wvalid = HREADY && HWRITE && HTRANS[1] && (state_c == NONSEQ || state_c == WAIT) && ~(we && ~we_d1); // TODO 
+assign wvalid = HREADY && HWRITE && HTRANS[1] && (state_c == NONSEQ || state_c == WAIT) && (we && ~trans_pend); // 0620
+
 //assign first_trans = (re && state_c == IDLE && state_n != IDLE);
 //assign first_trans = (re && state_c == IDLE && state_n != IDLE) && (master_read_id != master_read_id_lat);
 always_ff@(posedge HCLK or negedge HRESETn) begin
@@ -213,7 +215,8 @@ end
 always_ff@(posedge HCLK or negedge HRESETn) begin
     if(~HRESETn)
         re_d1 <= 1'b0;
-    else
+    //else
+    else if(HREADY) // FIX 
         re_d1 <= re;
 end
 /*

@@ -178,6 +178,8 @@ module ahb_connect (
     HREADYS1,
     HRESPS1,
 
+    trans_pend,
+
     // Scan test dummy signals; not connected until scan insertion
     SCANOUTHCLK   // Scan Chain Output
 
@@ -335,6 +337,8 @@ module ahb_connect (
 
     // Scan test dummy signals; not connected until scan insertion
     output        SCANOUTHCLK;     // Scan Chain Output
+
+    output       trans_pend;
 
 // -----------------------------------------------------------------------------
 // Wire declarations
@@ -651,7 +655,8 @@ module ahb_connect (
     .HREADYOUTM7  (HREADYOUTM7),
     .HRESPM7      (i_hrespM7),
 
-
+    .trans_pend   (trans_pend),
+    
     // Scan test dummy signals; not connected until scan insertion
     .SCANENABLE            (SCANENABLE),
     .SCANINHCLK            (SCANINHCLK),

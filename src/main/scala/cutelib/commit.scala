@@ -127,6 +127,11 @@ case class commit() extends Component with Global_parameter with Interface_MS{
   // commit to regfile & memory //
   val commit_req_d1 = RegNext(io.ex_commit_entry.commit_req, False)
   val  commit_req_pulse = io.ex_commit_entry.commit_req & ~commit_req_d1
+  val commit_pc_d1 = Reg(UInt(InstAddrBus bits)) init(1)
+  when(io.ex_commit_entry.commit_req) {
+    commit_pc_d1 := io.ex_commit_entry.pc
+  } .otherwise{}
+  val commit_pc_same = (io.ex_commit_entry.pc === commit_pc_d1)
   //when(commit_req_pulse && ~io.flush){ // added flush
   //when(commit_req_pulse && ~flush_req_pulse){  // todo: 分支预测失败指令是否要提交？ 中断异常指令是否要提交？
   when(io.ex_commit_entry.commit_req && ~flush_req){  // todo with bus delay
@@ -166,7 +171,6 @@ case class commit() extends Component with Global_parameter with Interface_MS{
 
   val commit_req_ack = Reg(Bool()) init(False)
   val recv_id = Reg(UInt(SCB_ID_WIDTH bits)) init(SCB_IU_DEEPTH)
-  //when(commit_req_pulse){
   when(io.ex_commit_entry.commit_req){  // todo with bus delay
     commit_req_ack := True  // todo with regfile/csr/dcache ack
     recv_id := io.ex_commit_entry.trans_id
@@ -177,14 +181,8 @@ case class commit() extends Component with Global_parameter with Interface_MS{
   io.ex_commit_entry.commit_ack := commit_req_ack
   io.ex_commit_entry.recv_id := recv_id
 
-  val report_cnt = Reg(UInt(1 bits)) init(0)
-  when(commit_req_pulse){
-    report_cnt := 0
-  } .elsewhen(io.ex_commit_entry.commit_ack){
-    report_cnt := report_cnt + 1
-  }
-
-  when(commit_req_pulse){
+  //when(commit_req_pulse){
+  when(io.ex_commit_entry.commit_req && ~commit_pc_same){  // 0620 for level req
     report(Seq("retire pc : ", io.ex_commit_entry.pc))
     report(Seq("retire instr : ", io.ex_commit_entry.instr))
     when(io.wb_regfile_interface.reg_wen){

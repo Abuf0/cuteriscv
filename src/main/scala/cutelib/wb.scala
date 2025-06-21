@@ -10,6 +10,9 @@ case class wb() extends Component with Global_parameter with Interface_MS{
     val flush = in Bool()
     //val ex_wb_entry = slave(commit_entry(CoreConfig())) // from scb
     val alu_ex_wb_entry  = slave(commit_entry(CoreConfig()))
+    val alu2_ex_wb_entry  = slave(commit_entry(CoreConfig()))
+    val alu3_ex_wb_entry  = slave(commit_entry(CoreConfig()))
+    val alu4_ex_wb_entry  = slave(commit_entry(CoreConfig()))
     val mul1_ex_wb_entry = slave(commit_entry(CoreConfig()))
     val mul2_ex_wb_entry = slave(commit_entry(CoreConfig()))
     val divu_ex_wb_entry = slave(commit_entry(CoreConfig()))
@@ -18,11 +21,15 @@ case class wb() extends Component with Global_parameter with Interface_MS{
     val csr_ex_wb_entry  = slave(commit_entry(CoreConfig()))
     val nopu_ex_wb_entry = slave(commit_entry(CoreConfig()))
     val wb_regfile_interface_alu = master(wregfile_interface(CoreConfig()))  // to regfile
+    val wb_regfile_interface_alu2 = master(wregfile_interface(CoreConfig()))  // to regfile
+    val wb_regfile_interface_alu3 = master(wregfile_interface(CoreConfig()))  // to regfile
+    val wb_regfile_interface_alu4 = master(wregfile_interface(CoreConfig()))  // to regfile
     val wb_regfile_interface_mul1 = master(wregfile_interface(CoreConfig()))  // to regfile
     val wb_regfile_interface_mul2 = master(wregfile_interface(CoreConfig()))  // to regfile
     val wb_regfile_interface_divu = master(wregfile_interface(CoreConfig()))  // to regfile
     val wb_regfile_interface_bju = master(wregfile_interface(CoreConfig()))  // to regfile
     val wb_regfile_interface_lsu = master(wregfile_interface(CoreConfig()))  // to regfile
+    val wb_regfile_interface_csr = master(wregfile_interface(CoreConfig()))  // to regfile
 
     val wb_dcache_interface_lsu = master(dcache_write_interface(CoreConfig())) // to store buffer
     //val trans_id_lsu = out UInt(SCB_ID_WIDTH bits)
@@ -178,6 +185,90 @@ case class wb() extends Component with Global_parameter with Interface_MS{
       VLD_FLAG_TAB(index_alu) := True
     }.otherwise {}
 
+    val index_alu2 = io.alu2_ex_wb_entry.trans_id(SCB_INSTR_WIDTH - 1 downto 0)
+    when(io.alu2_ex_wb_entry.commit_req) {
+      INSTR_TAB(index_alu2) := io.alu2_ex_wb_entry.instr
+      PC_TAB(index_alu2) := io.alu2_ex_wb_entry.pc
+      REG_WEN_TAB(index_alu2) := io.alu2_ex_wb_entry.reg_wb_en
+      REG_WADDR_TAB(index_alu2) := io.alu2_ex_wb_entry.reg_wb_addr
+      REG_WDATA_TAB(index_alu2) := io.alu2_ex_wb_entry.reg_wb_data
+      CSR_WEN_TAB(index_alu2) := io.alu2_ex_wb_entry.csr_wb_en
+      CSR_WADDR_TAB(index_alu2) := io.alu2_ex_wb_entry.csr_wb_addr
+      CSR_WDATA_TAB(index_alu2) := io.alu2_ex_wb_entry.csr_wb_data
+      DCACHE_REN_TAB(index_alu2) := io.alu2_ex_wb_entry.dcache_rd_en
+      DCACHE_RADDR_TAB(index_alu2) := io.alu2_ex_wb_entry.dcache_rd_addr
+      DCACHE_WEN_TAB(index_alu2) := io.alu2_ex_wb_entry.dcache_wb_en
+      DCACHE_WSEL_TAB(index_alu2) := io.alu2_ex_wb_entry.dcache_wb_sel
+      DCACHE_WADDR_TAB(index_alu2) := io.alu2_ex_wb_entry.dcache_wb_addr
+      DCACHE_WDATA_TAB(index_alu2) := io.alu2_ex_wb_entry.dcache_wb_data
+      BRANCH_COR_TAB(index_alu2) := io.alu2_ex_wb_entry.branch_cor
+      CALL_COR_TAB(index_alu2) := io.alu2_ex_wb_entry.call_cor
+      RET_COR_TAB(index_alu2) := io.alu2_ex_wb_entry.ret_cor
+      IS_BRANCH_TAB(index_alu2) := io.alu2_ex_wb_entry.is_branch
+      IS_CALL_TAB(index_alu2) := io.alu2_ex_wb_entry.is_call
+      IS_RET_TAB(index_alu2) := io.alu2_ex_wb_entry.is_ret
+      IS_JUMP_TAB(index_alu2) := io.alu2_ex_wb_entry.is_jump
+      TARGET_PC_TAB(index_alu2) := io.alu2_ex_wb_entry.target_pc
+      DEC_VLD_TAB(index_alu2) := True
+      VLD_FLAG_TAB(index_alu2) := True
+    }.otherwise {}
+
+    val index_alu3 = io.alu3_ex_wb_entry.trans_id(SCB_INSTR_WIDTH - 1 downto 0)
+    when(io.alu3_ex_wb_entry.commit_req) {
+      INSTR_TAB(index_alu3) := io.alu3_ex_wb_entry.instr
+      PC_TAB(index_alu3) := io.alu3_ex_wb_entry.pc
+      REG_WEN_TAB(index_alu3) := io.alu3_ex_wb_entry.reg_wb_en
+      REG_WADDR_TAB(index_alu3) := io.alu3_ex_wb_entry.reg_wb_addr
+      REG_WDATA_TAB(index_alu3) := io.alu3_ex_wb_entry.reg_wb_data
+      CSR_WEN_TAB(index_alu3) := io.alu3_ex_wb_entry.csr_wb_en
+      CSR_WADDR_TAB(index_alu3) := io.alu3_ex_wb_entry.csr_wb_addr
+      CSR_WDATA_TAB(index_alu3) := io.alu3_ex_wb_entry.csr_wb_data
+      DCACHE_REN_TAB(index_alu3) := io.alu3_ex_wb_entry.dcache_rd_en
+      DCACHE_RADDR_TAB(index_alu3) := io.alu3_ex_wb_entry.dcache_rd_addr
+      DCACHE_WEN_TAB(index_alu3) := io.alu3_ex_wb_entry.dcache_wb_en
+      DCACHE_WSEL_TAB(index_alu3) := io.alu3_ex_wb_entry.dcache_wb_sel
+      DCACHE_WADDR_TAB(index_alu3) := io.alu3_ex_wb_entry.dcache_wb_addr
+      DCACHE_WDATA_TAB(index_alu3) := io.alu3_ex_wb_entry.dcache_wb_data
+      BRANCH_COR_TAB(index_alu3) := io.alu3_ex_wb_entry.branch_cor
+      CALL_COR_TAB(index_alu3) := io.alu3_ex_wb_entry.call_cor
+      RET_COR_TAB(index_alu3) := io.alu3_ex_wb_entry.ret_cor
+      IS_BRANCH_TAB(index_alu3) := io.alu3_ex_wb_entry.is_branch
+      IS_CALL_TAB(index_alu3) := io.alu3_ex_wb_entry.is_call
+      IS_RET_TAB(index_alu3) := io.alu3_ex_wb_entry.is_ret
+      IS_JUMP_TAB(index_alu3) := io.alu3_ex_wb_entry.is_jump
+      TARGET_PC_TAB(index_alu3) := io.alu3_ex_wb_entry.target_pc
+      DEC_VLD_TAB(index_alu3) := True
+      VLD_FLAG_TAB(index_alu3) := True
+    }.otherwise {}
+
+    val index_alu4 = io.alu4_ex_wb_entry.trans_id(SCB_INSTR_WIDTH - 1 downto 0)
+    when(io.alu4_ex_wb_entry.commit_req) {
+      INSTR_TAB(index_alu4) := io.alu4_ex_wb_entry.instr
+      PC_TAB(index_alu4) := io.alu4_ex_wb_entry.pc
+      REG_WEN_TAB(index_alu4) := io.alu4_ex_wb_entry.reg_wb_en
+      REG_WADDR_TAB(index_alu4) := io.alu4_ex_wb_entry.reg_wb_addr
+      REG_WDATA_TAB(index_alu4) := io.alu4_ex_wb_entry.reg_wb_data
+      CSR_WEN_TAB(index_alu4) := io.alu4_ex_wb_entry.csr_wb_en
+      CSR_WADDR_TAB(index_alu4) := io.alu4_ex_wb_entry.csr_wb_addr
+      CSR_WDATA_TAB(index_alu4) := io.alu4_ex_wb_entry.csr_wb_data
+      DCACHE_REN_TAB(index_alu4) := io.alu4_ex_wb_entry.dcache_rd_en
+      DCACHE_RADDR_TAB(index_alu4) := io.alu4_ex_wb_entry.dcache_rd_addr
+      DCACHE_WEN_TAB(index_alu4) := io.alu4_ex_wb_entry.dcache_wb_en
+      DCACHE_WSEL_TAB(index_alu4) := io.alu4_ex_wb_entry.dcache_wb_sel
+      DCACHE_WADDR_TAB(index_alu4) := io.alu4_ex_wb_entry.dcache_wb_addr
+      DCACHE_WDATA_TAB(index_alu4) := io.alu4_ex_wb_entry.dcache_wb_data
+      BRANCH_COR_TAB(index_alu4) := io.alu4_ex_wb_entry.branch_cor
+      CALL_COR_TAB(index_alu4) := io.alu4_ex_wb_entry.call_cor
+      RET_COR_TAB(index_alu4) := io.alu4_ex_wb_entry.ret_cor
+      IS_BRANCH_TAB(index_alu4) := io.alu4_ex_wb_entry.is_branch
+      IS_CALL_TAB(index_alu4) := io.alu4_ex_wb_entry.is_call
+      IS_RET_TAB(index_alu4) := io.alu4_ex_wb_entry.is_ret
+      IS_JUMP_TAB(index_alu4) := io.alu4_ex_wb_entry.is_jump
+      TARGET_PC_TAB(index_alu4) := io.alu4_ex_wb_entry.target_pc
+      DEC_VLD_TAB(index_alu4) := True
+      VLD_FLAG_TAB(index_alu4) := True
+    }.otherwise {}
+
     val index_mul1 = io.mul1_ex_wb_entry.trans_id(SCB_INSTR_WIDTH - 1 downto 0)
     when(io.mul1_ex_wb_entry.commit_req) {
       INSTR_TAB(index_mul1) := io.mul1_ex_wb_entry.instr
@@ -199,7 +290,7 @@ case class wb() extends Component with Global_parameter with Interface_MS{
       IS_BRANCH_TAB(index_mul1) := io.mul1_ex_wb_entry.is_branch
       IS_CALL_TAB(index_mul1) := io.mul1_ex_wb_entry.is_call
       IS_RET_TAB(index_mul1) := io.mul1_ex_wb_entry.is_ret
-      IS_JUMP_TAB(index_mul1) := io.alu_ex_wb_entry.is_jump
+      IS_JUMP_TAB(index_mul1) := io.mul1_ex_wb_entry.is_jump
       RET_COR_TAB(index_mul1) := io.mul1_ex_wb_entry.ret_cor
       TARGET_PC_TAB(index_mul1) := io.mul1_ex_wb_entry.target_pc
       DEC_VLD_TAB(index_mul1) := True
@@ -403,6 +494,33 @@ case class wb() extends Component with Global_parameter with Interface_MS{
     io.wb_regfile_interface_alu.reg_waddr := 0
     io.wb_regfile_interface_alu.reg_wdata := 0
   }
+  when(io.alu2_ex_wb_entry.commit_req){
+    io.wb_regfile_interface_alu2.reg_wen   := io.alu2_ex_wb_entry.reg_wb_en
+    io.wb_regfile_interface_alu2.reg_waddr := io.alu2_ex_wb_entry.reg_wb_addr
+    io.wb_regfile_interface_alu2.reg_wdata := io.alu2_ex_wb_entry.reg_wb_data
+  } .otherwise{
+    io.wb_regfile_interface_alu2.reg_wen   := False
+    io.wb_regfile_interface_alu2.reg_waddr := 0
+    io.wb_regfile_interface_alu2.reg_wdata := 0
+  }
+  when(io.alu3_ex_wb_entry.commit_req){
+    io.wb_regfile_interface_alu3.reg_wen   := io.alu3_ex_wb_entry.reg_wb_en
+    io.wb_regfile_interface_alu3.reg_waddr := io.alu3_ex_wb_entry.reg_wb_addr
+    io.wb_regfile_interface_alu3.reg_wdata := io.alu3_ex_wb_entry.reg_wb_data
+  } .otherwise{
+    io.wb_regfile_interface_alu3.reg_wen   := False
+    io.wb_regfile_interface_alu3.reg_waddr := 0
+    io.wb_regfile_interface_alu3.reg_wdata := 0
+  }
+  when(io.alu4_ex_wb_entry.commit_req){
+    io.wb_regfile_interface_alu4.reg_wen   := io.alu4_ex_wb_entry.reg_wb_en
+    io.wb_regfile_interface_alu4.reg_waddr := io.alu4_ex_wb_entry.reg_wb_addr
+    io.wb_regfile_interface_alu4.reg_wdata := io.alu4_ex_wb_entry.reg_wb_data
+  } .otherwise{
+    io.wb_regfile_interface_alu4.reg_wen   := False
+    io.wb_regfile_interface_alu4.reg_waddr := 0
+    io.wb_regfile_interface_alu4.reg_wdata := 0
+  }
   when(io.mul1_ex_wb_entry.commit_req){
     io.wb_regfile_interface_mul1.reg_wen   := io.mul1_ex_wb_entry.reg_wb_en
     io.wb_regfile_interface_mul1.reg_waddr := io.mul1_ex_wb_entry.reg_wb_addr
@@ -458,6 +576,15 @@ case class wb() extends Component with Global_parameter with Interface_MS{
     io.wb_dcache_interface_lsu.wdata      := 0
     //io.trans_id_lsu                       := SCB_INSTR_DEEPTH
   }
+  when(io.csr_ex_wb_entry.commit_req){
+    io.wb_regfile_interface_csr.reg_wen   := io.csr_ex_wb_entry.reg_wb_en
+    io.wb_regfile_interface_csr.reg_waddr := io.csr_ex_wb_entry.reg_wb_addr
+    io.wb_regfile_interface_csr.reg_wdata := io.csr_ex_wb_entry.reg_wb_data
+  }.otherwise{
+    io.wb_regfile_interface_csr.reg_wen   := False
+    io.wb_regfile_interface_csr.reg_waddr := 0
+    io.wb_regfile_interface_csr.reg_wdata := 0
+  }
 
   when(io.csr_ex_wb_entry.commit_req){
     io.wb_csr_interface.reg_wen       := io.csr_ex_wb_entry.csr_wb_en
@@ -468,6 +595,7 @@ case class wb() extends Component with Global_parameter with Interface_MS{
     io.wb_csr_interface.reg_waddr := 0
     io.wb_csr_interface.reg_wdata := 0
   }
+  /*
   val alu_commit_req_ack = Reg(Bool()) init(False)
   val alu_recv_id = Reg(UInt(SCB_ID_WIDTH bits)) init(SCB_IU_DEEPTH)
   val mul1_commit_req_ack = Reg(Bool()) init(False)
@@ -484,6 +612,29 @@ case class wb() extends Component with Global_parameter with Interface_MS{
   val csr_recv_id = Reg(UInt(SCB_ID_WIDTH bits)) init(SCB_IU_DEEPTH)
   val nop_commit_req_ack = Reg(Bool()) init(False)
   val nop_recv_id = Reg(UInt(SCB_ID_WIDTH bits)) init(SCB_IU_DEEPTH)
+  */
+  val alu_commit_req_ack = Bool()
+  val alu_recv_id = UInt(SCB_ID_WIDTH bits)
+  val alu2_commit_req_ack = Bool()
+  val alu2_recv_id = UInt(SCB_ID_WIDTH bits)
+  val alu3_commit_req_ack = Bool()
+  val alu3_recv_id = UInt(SCB_ID_WIDTH bits)
+  val alu4_commit_req_ack = Bool()
+  val alu4_recv_id = UInt(SCB_ID_WIDTH bits)
+  val mul1_commit_req_ack = Bool()
+  val mul1_recv_id = UInt(SCB_ID_WIDTH bits)
+  val mul2_commit_req_ack = Bool()
+  val mul2_recv_id = UInt(SCB_ID_WIDTH bits)
+  val divu_commit_req_ack = Bool()
+  val divu_recv_id = UInt(SCB_ID_WIDTH bits)
+  val bju_commit_req_ack = Bool()
+  val bju_recv_id = UInt(SCB_ID_WIDTH bits)
+  val lsu_commit_req_ack = Bool()
+  val lsu_recv_id = UInt(SCB_ID_WIDTH bits)
+  val csr_commit_req_ack = Bool()
+  val csr_recv_id = UInt(SCB_ID_WIDTH bits)
+  val nop_commit_req_ack = Bool()
+  val nop_recv_id = UInt(SCB_ID_WIDTH bits)
 
   when(io.alu_ex_wb_entry.commit_req){
     alu_commit_req_ack := True  // todo with regfile/csr/dcache ack
@@ -491,6 +642,27 @@ case class wb() extends Component with Global_parameter with Interface_MS{
   } .otherwise{
     alu_commit_req_ack := False
     alu_recv_id := SCB_IU_DEEPTH
+  }
+  when(io.alu2_ex_wb_entry.commit_req){
+    alu2_commit_req_ack := True  // todo with regfile/csr/dcache ack
+    alu2_recv_id := io.alu2_ex_wb_entry.trans_id
+  } .otherwise{
+    alu2_commit_req_ack := False
+    alu2_recv_id := SCB_IU_DEEPTH
+  }
+  when(io.alu3_ex_wb_entry.commit_req){
+    alu3_commit_req_ack := True  // todo with regfile/csr/dcache ack
+    alu3_recv_id := io.alu3_ex_wb_entry.trans_id
+  } .otherwise{
+    alu3_commit_req_ack := False
+    alu3_recv_id := SCB_IU_DEEPTH
+  }
+  when(io.alu4_ex_wb_entry.commit_req){
+    alu4_commit_req_ack := True  // todo with regfile/csr/dcache ack
+    alu4_recv_id := io.alu4_ex_wb_entry.trans_id
+  } .otherwise{
+    alu4_commit_req_ack := False
+    alu4_recv_id := SCB_IU_DEEPTH
   }
   when(io.mul1_ex_wb_entry.commit_req){
     mul1_commit_req_ack := True  // todo with regfile/csr/dcache ack
@@ -569,30 +741,105 @@ case class wb() extends Component with Global_parameter with Interface_MS{
   val wb_scb_entry_dec_valid = Bool()
 
   val hindex = io.head_ptr
-  when(U"0"@@hindex === io.alu_ex_wb_entry.trans_id && io.alu_ex_wb_entry.commit_req){
-    wb_scb_entry_instr          := io.alu_ex_wb_entry.instr
-    wb_scb_entry_pc             := io.alu_ex_wb_entry.pc
-    wb_scb_entry_reg_wb_en      := io.alu_ex_wb_entry.reg_wb_en
-    wb_scb_entry_reg_wb_addr    := io.alu_ex_wb_entry.reg_wb_addr
-    wb_scb_entry_reg_wb_data    := io.alu_ex_wb_entry.reg_wb_data
-    wb_scb_entry_trans_id       := io.alu_ex_wb_entry.trans_id
-    wb_scb_entry_dcache_rd_en   := io.alu_ex_wb_entry.dcache_rd_en
+  when(U"0"@@hindex === io.alu_ex_wb_entry.trans_id && io.alu_ex_wb_entry.commit_req) {
+    wb_scb_entry_instr := io.alu_ex_wb_entry.instr
+    wb_scb_entry_pc := io.alu_ex_wb_entry.pc
+    wb_scb_entry_reg_wb_en := io.alu_ex_wb_entry.reg_wb_en
+    wb_scb_entry_reg_wb_addr := io.alu_ex_wb_entry.reg_wb_addr
+    wb_scb_entry_reg_wb_data := io.alu_ex_wb_entry.reg_wb_data
+    wb_scb_entry_trans_id := io.alu_ex_wb_entry.trans_id
+    wb_scb_entry_dcache_rd_en := io.alu_ex_wb_entry.dcache_rd_en
     wb_scb_entry_dcache_rd_addr := io.alu_ex_wb_entry.dcache_rd_addr
-    wb_scb_entry_dcache_wb_en   := io.alu_ex_wb_entry.dcache_wb_en
-    wb_scb_entry_dcache_wb_sel  := io.alu_ex_wb_entry.dcache_wb_sel
+    wb_scb_entry_dcache_wb_en := io.alu_ex_wb_entry.dcache_wb_en
+    wb_scb_entry_dcache_wb_sel := io.alu_ex_wb_entry.dcache_wb_sel
     wb_scb_entry_dcache_wb_addr := io.alu_ex_wb_entry.dcache_wb_addr
     wb_scb_entry_dcache_wb_data := io.alu_ex_wb_entry.dcache_wb_data
-    wb_scb_entry_branch_cor     := io.alu_ex_wb_entry.branch_cor
-    wb_scb_entry_call_cor       := io.alu_ex_wb_entry.call_cor
-    wb_scb_entry_ret_cor        := io.alu_ex_wb_entry.ret_cor
-    wb_scb_entry_is_branch      := io.alu_ex_wb_entry.is_branch
-    wb_scb_entry_is_call        := io.alu_ex_wb_entry.is_call
-    wb_scb_entry_is_ret         := io.alu_ex_wb_entry.is_ret
-    wb_scb_entry_is_jump         := io.alu_ex_wb_entry.is_jump
-    wb_scb_entry_target_pc      := io.alu_ex_wb_entry.target_pc
-    wb_scb_entry_csr_wb_addr    := io.alu_ex_wb_entry.csr_wb_addr
-    wb_scb_entry_csr_wb_data    := io.alu_ex_wb_entry.csr_wb_data
-    wb_scb_entry_csr_wb_en      := io.alu_ex_wb_entry.csr_wb_en
+    wb_scb_entry_branch_cor := io.alu_ex_wb_entry.branch_cor
+    wb_scb_entry_call_cor := io.alu_ex_wb_entry.call_cor
+    wb_scb_entry_ret_cor := io.alu_ex_wb_entry.ret_cor
+    wb_scb_entry_is_branch := io.alu_ex_wb_entry.is_branch
+    wb_scb_entry_is_call := io.alu_ex_wb_entry.is_call
+    wb_scb_entry_is_ret := io.alu_ex_wb_entry.is_ret
+    wb_scb_entry_is_jump := io.alu_ex_wb_entry.is_jump
+    wb_scb_entry_target_pc := io.alu_ex_wb_entry.target_pc
+    wb_scb_entry_csr_wb_addr := io.alu_ex_wb_entry.csr_wb_addr
+    wb_scb_entry_csr_wb_data := io.alu_ex_wb_entry.csr_wb_data
+    wb_scb_entry_csr_wb_en := io.alu_ex_wb_entry.csr_wb_en
+    wb_scb_entry_dec_valid := True
+  } .elsewhen(U"0"@@hindex === io.alu2_ex_wb_entry.trans_id && io.alu2_ex_wb_entry.commit_req){
+      wb_scb_entry_instr          := io.alu2_ex_wb_entry.instr
+      wb_scb_entry_pc             := io.alu2_ex_wb_entry.pc
+      wb_scb_entry_reg_wb_en      := io.alu2_ex_wb_entry.reg_wb_en
+      wb_scb_entry_reg_wb_addr    := io.alu2_ex_wb_entry.reg_wb_addr
+      wb_scb_entry_reg_wb_data    := io.alu2_ex_wb_entry.reg_wb_data
+      wb_scb_entry_trans_id       := io.alu2_ex_wb_entry.trans_id
+      wb_scb_entry_dcache_rd_en   := io.alu2_ex_wb_entry.dcache_rd_en
+      wb_scb_entry_dcache_rd_addr := io.alu2_ex_wb_entry.dcache_rd_addr
+      wb_scb_entry_dcache_wb_en   := io.alu2_ex_wb_entry.dcache_wb_en
+      wb_scb_entry_dcache_wb_sel  := io.alu2_ex_wb_entry.dcache_wb_sel
+      wb_scb_entry_dcache_wb_addr := io.alu2_ex_wb_entry.dcache_wb_addr
+      wb_scb_entry_dcache_wb_data := io.alu2_ex_wb_entry.dcache_wb_data
+      wb_scb_entry_branch_cor     := io.alu2_ex_wb_entry.branch_cor
+      wb_scb_entry_call_cor       := io.alu2_ex_wb_entry.call_cor
+      wb_scb_entry_ret_cor        := io.alu2_ex_wb_entry.ret_cor
+      wb_scb_entry_is_branch      := io.alu2_ex_wb_entry.is_branch
+      wb_scb_entry_is_call        := io.alu2_ex_wb_entry.is_call
+      wb_scb_entry_is_ret         := io.alu2_ex_wb_entry.is_ret
+      wb_scb_entry_is_jump         := io.alu2_ex_wb_entry.is_jump
+      wb_scb_entry_target_pc      := io.alu2_ex_wb_entry.target_pc
+      wb_scb_entry_csr_wb_addr    := io.alu2_ex_wb_entry.csr_wb_addr
+      wb_scb_entry_csr_wb_data    := io.alu2_ex_wb_entry.csr_wb_data
+      wb_scb_entry_csr_wb_en      := io.alu2_ex_wb_entry.csr_wb_en
+      wb_scb_entry_dec_valid      := True
+  } .elsewhen(U"0"@@hindex === io.alu3_ex_wb_entry.trans_id && io.alu3_ex_wb_entry.commit_req){
+    wb_scb_entry_instr          := io.alu3_ex_wb_entry.instr
+    wb_scb_entry_pc             := io.alu3_ex_wb_entry.pc
+    wb_scb_entry_reg_wb_en      := io.alu3_ex_wb_entry.reg_wb_en
+    wb_scb_entry_reg_wb_addr    := io.alu3_ex_wb_entry.reg_wb_addr
+    wb_scb_entry_reg_wb_data    := io.alu3_ex_wb_entry.reg_wb_data
+    wb_scb_entry_trans_id       := io.alu3_ex_wb_entry.trans_id
+    wb_scb_entry_dcache_rd_en   := io.alu3_ex_wb_entry.dcache_rd_en
+    wb_scb_entry_dcache_rd_addr := io.alu3_ex_wb_entry.dcache_rd_addr
+    wb_scb_entry_dcache_wb_en   := io.alu3_ex_wb_entry.dcache_wb_en
+    wb_scb_entry_dcache_wb_sel  := io.alu3_ex_wb_entry.dcache_wb_sel
+    wb_scb_entry_dcache_wb_addr := io.alu3_ex_wb_entry.dcache_wb_addr
+    wb_scb_entry_dcache_wb_data := io.alu3_ex_wb_entry.dcache_wb_data
+    wb_scb_entry_branch_cor     := io.alu3_ex_wb_entry.branch_cor
+    wb_scb_entry_call_cor       := io.alu3_ex_wb_entry.call_cor
+    wb_scb_entry_ret_cor        := io.alu3_ex_wb_entry.ret_cor
+    wb_scb_entry_is_branch      := io.alu3_ex_wb_entry.is_branch
+    wb_scb_entry_is_call        := io.alu3_ex_wb_entry.is_call
+    wb_scb_entry_is_ret         := io.alu3_ex_wb_entry.is_ret
+    wb_scb_entry_is_jump         := io.alu3_ex_wb_entry.is_jump
+    wb_scb_entry_target_pc      := io.alu3_ex_wb_entry.target_pc
+    wb_scb_entry_csr_wb_addr    := io.alu3_ex_wb_entry.csr_wb_addr
+    wb_scb_entry_csr_wb_data    := io.alu3_ex_wb_entry.csr_wb_data
+    wb_scb_entry_csr_wb_en      := io.alu3_ex_wb_entry.csr_wb_en
+    wb_scb_entry_dec_valid      := True
+  } .elsewhen(U"0"@@hindex === io.alu4_ex_wb_entry.trans_id && io.alu4_ex_wb_entry.commit_req){
+    wb_scb_entry_instr          := io.alu4_ex_wb_entry.instr
+    wb_scb_entry_pc             := io.alu4_ex_wb_entry.pc
+    wb_scb_entry_reg_wb_en      := io.alu4_ex_wb_entry.reg_wb_en
+    wb_scb_entry_reg_wb_addr    := io.alu4_ex_wb_entry.reg_wb_addr
+    wb_scb_entry_reg_wb_data    := io.alu4_ex_wb_entry.reg_wb_data
+    wb_scb_entry_trans_id       := io.alu4_ex_wb_entry.trans_id
+    wb_scb_entry_dcache_rd_en   := io.alu4_ex_wb_entry.dcache_rd_en
+    wb_scb_entry_dcache_rd_addr := io.alu4_ex_wb_entry.dcache_rd_addr
+    wb_scb_entry_dcache_wb_en   := io.alu4_ex_wb_entry.dcache_wb_en
+    wb_scb_entry_dcache_wb_sel  := io.alu4_ex_wb_entry.dcache_wb_sel
+    wb_scb_entry_dcache_wb_addr := io.alu4_ex_wb_entry.dcache_wb_addr
+    wb_scb_entry_dcache_wb_data := io.alu4_ex_wb_entry.dcache_wb_data
+    wb_scb_entry_branch_cor     := io.alu4_ex_wb_entry.branch_cor
+    wb_scb_entry_call_cor       := io.alu4_ex_wb_entry.call_cor
+    wb_scb_entry_ret_cor        := io.alu4_ex_wb_entry.ret_cor
+    wb_scb_entry_is_branch      := io.alu4_ex_wb_entry.is_branch
+    wb_scb_entry_is_call        := io.alu4_ex_wb_entry.is_call
+    wb_scb_entry_is_ret         := io.alu4_ex_wb_entry.is_ret
+    wb_scb_entry_is_jump         := io.alu4_ex_wb_entry.is_jump
+    wb_scb_entry_target_pc      := io.alu4_ex_wb_entry.target_pc
+    wb_scb_entry_csr_wb_addr    := io.alu4_ex_wb_entry.csr_wb_addr
+    wb_scb_entry_csr_wb_data    := io.alu4_ex_wb_entry.csr_wb_data
+    wb_scb_entry_csr_wb_en      := io.alu4_ex_wb_entry.csr_wb_en
     wb_scb_entry_dec_valid      := True
   } .elsewhen(U"0"@@hindex === io.mul1_ex_wb_entry.trans_id && io.mul1_ex_wb_entry.commit_req){
     wb_scb_entry_instr          := io.mul1_ex_wb_entry.instr
@@ -825,6 +1072,12 @@ case class wb() extends Component with Global_parameter with Interface_MS{
 
   io.alu_ex_wb_entry.commit_ack := alu_commit_req_ack
   io.alu_ex_wb_entry.recv_id    := alu_recv_id
+  io.alu2_ex_wb_entry.commit_ack := alu2_commit_req_ack
+  io.alu2_ex_wb_entry.recv_id    := alu2_recv_id
+  io.alu3_ex_wb_entry.commit_ack := alu3_commit_req_ack
+  io.alu3_ex_wb_entry.recv_id    := alu3_recv_id
+  io.alu4_ex_wb_entry.commit_ack := alu4_commit_req_ack
+  io.alu4_ex_wb_entry.recv_id    := alu4_recv_id
   io.mul1_ex_wb_entry.commit_ack := mul1_commit_req_ack
   io.mul1_ex_wb_entry.recv_id    := mul1_recv_id
   io.mul2_ex_wb_entry.commit_ack := mul2_commit_req_ack

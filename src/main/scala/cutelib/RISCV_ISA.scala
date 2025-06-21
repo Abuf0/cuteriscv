@@ -241,7 +241,7 @@ object RISCV_ISA {
   // EX stage Units List
   val encoding = SpinalEnumEncoding("dynamicEncoding", _ * 1)
   object ALU_UNIT_SEL extends SpinalEnum(encoding) {
-    val ALUU, MULU1, MULU2, DIVU, BJU, LSU, CSR, NOPU = newElement()
+    val ALUU, ALUU2, ALUU3, ALUU4, MULU1, MULU2, DIVU, BJU, LSU, CSR, NOPU = newElement()
   }
 
   // dec option types

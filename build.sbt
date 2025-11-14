@@ -17,5 +17,10 @@ lazy val cutelib = (project in file("."))
     name := "SpinalTemplateSbt",
     libraryDependencies ++= Seq(spinalCore, spinalLib, spinalIdslPlugin)
   )
+lazy val mainelib = (project in file("."))
+  .settings(
+    name := "SpinalTemplateSbt",
+    libraryDependencies ++= Seq(spinalCore, spinalLib, spinalIdslPlugin)
+  )
 
 fork := true
